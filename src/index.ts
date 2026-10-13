@@ -180,19 +180,22 @@ const BUNDLED_POLICY = {
     owner_review_deadline_hours: 168,
     renter_response_window_hours: 72,
     renter_response_window_note:
-      "An explicit accept is the ONLY trigger for collection. On silence RIGShare charges nothing and routes the claim to direct_resolution. An AI plausibility check still runs and is included as evidence in the resolution packet, but it never authorizes a charge.",
+      "An explicit accept is the ONLY trigger for collection. On silence RIGShare charges nothing and routes the claim to direct_resolution. An AI plausibility check still runs. Its result is recorded for RIGShare's own review and is an input to the renter booking gate (see renter_booking_gate); it is not shared with the owner or the renter, and it never authorizes a charge.",
     environmental_grime_excluded: true,
     collection: { max_attempts: 1, window_days: 0, requires_explicit_renter_acceptance: true },
     direct_resolution: {
       description:
-        "If the approved amount cannot be collected, or a silent claim was not cleared by the plausibility check, RIGShare shares contact info and the evidence between owner and renter, opens a message thread, and stops charging. RIGShare facilitates the transaction and does not adjudicate the claim.",
+        "If the renter does not respond within the response window, or the approved amount cannot be collected (for example the renter's accepted charge is declined), RIGShare shares contact info and the evidence between owner and renter, opens a message thread, and stops charging. A claim the renter disputes is reviewed first and reaches this step only if the review does not end in the renter's favor or no decision is made in time. A silent claim goes this way whatever the AI plausibility check concluded, because only an explicit renter acceptance is ever charged. RIGShare facilitates the transaction and does not adjudicate the claim.",
       on_platform_settlement_available: true,
     },
     renter_booking_gate: {
+      // The DEFAULTS of the gate's two limits. The live endpoint publishes the values the
+      // server actually applies (they are env-tunable there); a bundled fallback is what an
+      // agent sees when that endpoint cannot be reached, so it is static by design.
       block_outstanding_usd: 2_500,
       block_claim_count: 3,
       note:
-        "A claim the renter never responded to AND that the AI never cleared as plausible does not count toward this gate.",
+        "Only claims in direct resolution count. A claim counts if the renter responded to it (accepted or disputed) or the AI plausibility check cleared it. A claim the renter never responded to and that the check did not clear does not count at all, toward either limit. Toward the claim-count limit, every counted claim counts, whatever its amount. Toward the dollar limit, a counted claim adds its outstanding amount (the approved amount minus anything already collected) in full when the renter accepted it, the AI plausibility check cleared it, or a dispute ruling took effect on it. Any other counted claim, such as one the renter disputed that nothing verified, adds at most the deposit figure shown on the listing when the booking was made (or, on an older booking, the security deposit recorded on it). On a current booking that is zero when the listing showed no deposit figure or showed that none is required.",
     },
   },
   claim_settlement: {
@@ -201,7 +204,7 @@ const BUNDLED_POLICY = {
     methods: ["card", "klarna", "affirm", "zip"],
     partial_payments_allowed: true,
     auto_resolves_on_full_payment: true,
-    renter_pays_processing_fee: true,
+    renter_pays_admin_fee: true,
     owner_receives_full_balance: true,
     fee_disclosure:
       "flat administrative fee, identical on every payment method, itemized before the renter pays; each payment (including each partial payment) carries one fee",

@@ -12,6 +12,17 @@ their own; those entries say which published release first included them.
 ## [Unreleased]
 
 ### Changed
+- The bundled fallback copy of the policy (what `rigshare://pricing` returns
+  when the live endpoint is unreachable) now matches the live
+  `/api/public/v1/policy` payload again. A damage claim the renter never
+  answered goes to direct resolution whatever the AI plausibility check
+  concluded, because only an explicit renter acceptance is ever charged; the
+  plausibility result is recorded internally and is not shared with either
+  party; the renter booking-gate note says what counts toward the dollar and
+  claim-count limits; and the on-platform settlement field
+  `renter_pays_processing_fee` is now `renter_pays_admin_fee` (the fee is a flat
+  administrative fee, the same on every payment method). No tool, parameter,
+  resource or prompt was added, removed or renamed.
 - `rigshare_get_owner_onboarding` and the `rigshare://owner-onboarding`
   resource now link owners to account creation that continues to the listing
   form (Robotics & AI: `https://tech.rigshare.app/login?mode=signup&redirect=%2Flist`;
