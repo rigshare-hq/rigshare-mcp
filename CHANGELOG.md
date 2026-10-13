@@ -11,6 +11,21 @@ their own; those entries say which published release first included them.
 
 ## [Unreleased]
 
+### Changed
+- `rigshare_get_owner_onboarding` and the `rigshare://owner-onboarding`
+  resource now link owners to account creation that continues to the listing
+  form (Robotics & AI: `https://tech.rigshare.app/login?mode=signup&redirect=%2Flist`;
+  construction: `https://www.rigshare.app/signup?redirect=%2Flist-equipment`)
+  instead of a waitlist page or a plain sign-up page.
+- The owner guide no longer says RIGShare verifies insurance (it sells and
+  verifies none), describes GPS tracking as a paid-plan feature for owners with
+  a supported tracker, drops setup-time estimates, describes remote-access
+  security as it works today (API keys encrypted at rest, an owner-set API
+  allowlist and concurrency limit, no IP restrictions or session duration caps),
+  and states payout timing as a release to the owner's Stripe account 48 hours
+  after the rental, with the bank deposit on Stripe's schedule. No tool,
+  parameter, resource or prompt was added, removed or renamed.
+
 ## [2.2.0] — 2026-10-02
 
 ### Changed

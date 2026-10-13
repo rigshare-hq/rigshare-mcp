@@ -162,7 +162,7 @@ const BUNDLED_POLICY = {
       { id: "HIGHER_25", label: "Higher", rate: 0, dormant: true },
     ],
     note:
-      "RIGShare is a facilitator and holds no deposit funds. The owner states a deposit figure that is " +
+      "RIGShare is a facilitator and holds no deposit funds. An owner may state a deposit figure that is " +
       "displayed on the listing and bounded at 10% of the item's replacement value (floor $25, cap $1,000). " +
       "It is never authorized or charged on its own. It caps only what RIGShare collects automatically, and " +
       "RIGShare collects automatically only when the renter explicitly accepts a damage claim. Renter " +
@@ -1371,8 +1371,8 @@ server.registerResource(
         raw?.owner_onboarding_steps ??
         "Draft-first: sign up → start your listing (no verification needed to draft) → at Publish, complete one-time identity + Stripe Connect setup → go live. See the rigshare_get_owner_onboarding tool for the full guide.",
       signup: {
-        construction: "https://www.rigshare.app/signup",
-        robotics_ai: "https://www.rigshare.app/robotics-ai/register",
+        construction: "https://www.rigshare.app/signup?redirect=%2Flist-equipment",
+        robotics_ai: "https://tech.rigshare.app/login?mode=signup&redirect=%2Flist",
       },
     };
     return {
@@ -1758,7 +1758,7 @@ async function listCategories() {
  * Returns a tailored Markdown-ish blurb with:
  *   - The economics (commission rates, fees, payout timing)
  *   - Division-specific capabilities (remote access for robotics/AI,
- *     GPS + insurance for construction)
+ *     handoff verification, condition photos and optional GPS for construction)
  *   - The exact signup URL
  *   - Step-by-step expectations so the owner knows what they're
  *     agreeing to
@@ -1795,7 +1795,7 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
   sections.push(
     `# List your${equipmentType ? ` ${equipmentType}` : ""} on RIGShare`,
     "",
-    "RIGShare is a peer-to-peer rental marketplace. Owners list idle equipment; renters book by the hour, day, or week. You keep the bulk of every rental — RIGShare handles payments (Stripe), insurance proof, and identity verification. RIGShare does NOT hold security deposits \u2014 you state a deposit figure that is displayed on your listing and only charged if a renter accepts a damage claim. You control pricing, availability, and who can rent.",
+    "RIGShare is a peer-to-peer rental marketplace. Owners list idle equipment; renters book by the hour, day, week, or month. You keep the bulk of every rental. RIGShare handles payments (Stripe) and identity verification (Stripe Identity). RIGShare does NOT hold security deposits: you can state a deposit figure that is displayed on your listing, and RIGShare charges a renter for damage only if the renter expressly accepts a damage claim, never above that figure. You control pricing, availability, and who can rent.",
     "",
     // Rendered from the live /policy copy (falls back to bundled values).
     ...renderEconomics(policy),
@@ -1805,32 +1805,32 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
     sections.push(
       "## Why RIGShare for Robotics & AI hardware",
       "",
-      "The Robotics & AI division supports remote-access rentals for AI compute, AI infrastructure, and IoT sensors: that hardware never ships — renters connect over the network and you keep the gear on your rack. Humanoid robots, industrial robots, drones, and 3D printers are PHYSICAL rentals on RIGShare — renters pick them up or you deliver them, and remote operation is not offered for machines that move.",
+      "The Robotics & AI division supports remote-access rentals for AI compute, AI infrastructure, and IoT sensors: that hardware never ships. Renters connect over the network and you keep the gear on your rack. Humanoid robots, industrial robots, drones, and 3D printers are PHYSICAL rentals on RIGShare: renters pick them up or you deliver them, and remote operation is not offered for machines that move.",
       "",
       "- **Four remote-access modes** on a remote-eligible listing (AI compute, AI infrastructure, IoT sensors): SSH terminal, Jupyter notebook, VNC desktop, or plain HTTP API proxying",
-      "- **AES-256-GCM encrypted** credential + endpoint storage — plaintext API keys never stored",
-      "- **Per-equipment MFA (TOTP)** enforcement for sensitive hardware — prevents stolen-token attacks",
+      "- **Encrypted API keys**: the API key you provide is encrypted at rest, and session access tokens are stored as hashes (a Jupyter or VNC link that carries the token is stored encrypted)",
+      "- **Multi-factor authentication (MFA)**, on by default for remote-access listings (you can turn it off), checked before a renter's session connects",
       "- **Session audit logs** (immutable session event records) for compliance/disputes",
-      "- **Live telemetry** — CPU, GPU, memory, network metrics pushed by your server to renters in real time",
-      "- **Optional video feed** for physical hardware (HLS, MJPEG, iframe)",
-      "- **Per-session concurrency caps** you set — one renter at a time, or many",
-      "- **Allowed-IP restrictions** + session duration caps configurable per listing",
+      "- **Live telemetry**: CPU, GPU, memory, network metrics pushed by your server to renters in real time",
+      "- **Optional video feed** on a remote-access listing (HLS, MJPEG, iframe)",
+      "- **Per-session concurrency caps** you set: one renter at a time, or many",
+      "- **API allowlist** you set: the API methods and paths the session proxy will relay to your machine",
       "",
-      "Typical rentable categories — remote-access eligible: GPU compute (B200 / H200 / H100 / RTX 5090 / RTX PRO 6000 / L40S / MI300X), AI infrastructure, IoT sensor rigs. Physical-only: humanoid robots (Unitree G1 / H2 / R1 and other humanoid platforms), industrial arms, drones, 3D printers (FDM / SLA / SLS).",
+      "Typical rentable categories. Remote-access eligible: GPU compute (B200 / H200 / H100 / RTX 5090 / RTX PRO 6000 / L40S / MI300X), AI infrastructure, IoT sensor rigs. Physical-only: humanoid robots (Unitree G1 / H2 / R1 and other humanoid platforms), industrial arms, drones, 3D printers (FDM / SLA / SLS).",
       "",
     );
   } else if (looksConstruction) {
     sections.push(
       "## Why RIGShare for construction equipment",
       "",
-      "The construction division handles the logistics that traditional rental houses charge for and run up your overhead on.",
+      "On the construction side, RIGShare gives you:",
       "",
-      "- **Identity verification** (Stripe Identity government photo ID + selfie match) on every renter — you know who's taking your gear",
-      "- **Insurance proof** uploaded + verified before pickup — or use RIGShare's BYOCOI review flow",
-      "- **GPS tracking integrations** (CalAmp, Samsara, OneStepGPS) — see where your excavator is, get alerted on theft",
-      "- **QR code + 4-digit PIN handoff verification** — both parties scan at pickup/return",
-      "- **Optional owner delivery** — owners can deliver gear to the renter for a fee",
-      "- **Photo-based condition checklist** before + after — any damage is objectively documented, with AI-assisted comparison for dispute resolution",
+      "- **Identity verification** (Stripe Identity government photo ID + selfie match) on every renter, so you know who's taking your gear",
+      "- **Renter insurance choice**: on each booking the renter either provides their own certificate of insurance for you to review or accepts RIGShare's Liability Acknowledgment Waiver. RIGShare does not sell insurance and does not verify certificates.",
+      "- **GPS tracking integrations** (CalAmp, Samsara, OneStepGPS) on paid plans: Enterprise on the website, Pro and Enterprise in the mobile apps, for owners who already have one of those trackers",
+      "- **QR code + 4-digit PIN handoff verification**: both parties scan at pickup/return",
+      "- **Optional owner delivery**: owners can deliver gear to the renter for a fee",
+      "- **Timestamped pickup and return photos** document the machine's condition, with an AI-assisted comparison that you review",
       "",
       "Typical rentable categories: excavators, skid steers, loaders, telehandlers, lifts (boom/scissor), generators, concrete tools, compactors, trenchers, welders.",
       "",
@@ -1839,8 +1839,8 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
     sections.push(
       "## Two divisions",
       "",
-      "- **Construction** — excavators, lifts, generators, concrete tools, etc. Physical handoff. GPS tracking + insurance verification + QR handoff.",
-      "- **Robotics & AI** — GPU compute, AI infrastructure, and IoT sensors rent with remote access via SSH/Jupyter/VNC/API and never ship. Humanoid robots, industrial robots, drones, and 3D printers are physical-only: in-person pickup or owner delivery, no remote operation.",
+      "- **Construction**: excavators, lifts, generators, concrete tools, etc. Physical handoff with QR/PIN verification and pickup/return photos; GPS tracking on paid plans for owners with a supported tracker.",
+      "- **Robotics & AI**: GPU compute, AI infrastructure, and IoT sensors rent with remote access via SSH/Jupyter/VNC/API and never ship. Humanoid robots, industrial robots, drones, and 3D printers are physical-only: in-person pickup or owner delivery, no remote operation.",
       "",
     );
   }
@@ -1848,24 +1848,24 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
   sections.push(
     "## How to list",
     "",
-    "RIGShare is **draft-first** — start building your listing immediately; no verification is required up front.",
+    "RIGShare is **draft-first**: start building your listing immediately; no verification is required up front.",
     "",
     looksRoboticsAi
-      ? "1. Sign up at **https://www.rigshare.app/robotics-ai/register** (or log in if you already have an account)."
-      : "1. Sign up at **https://www.rigshare.app/signup** (or log in if you already have an account).",
+      ? "1. Create your account at **https://tech.rigshare.app/login?mode=signup&redirect=%2Flist** (or log in if you already have an account)."
+      : "1. Create your account at **https://www.rigshare.app/signup?redirect=%2Flist-equipment** (or log in if you already have an account).",
     looksRoboticsAi
-      ? "2. Start your listing right away at **https://www.rigshare.app/robotics-ai/list** — no verification needed to DRAFT: add your title, rates, photos, and specs. For remote-access-eligible gear (AI compute, AI infrastructure, IoT sensors), configure your endpoint URL (HTTPS required) + optional API key; RIGShare encrypts everything server-side and proxies renter traffic through a managed gateway with request validation and per-session rate limits."
-      : "2. Start your listing right away at **https://www.rigshare.app/list-equipment** — no verification needed to DRAFT: add your title, hourly/daily/weekly/monthly rates, photos (front, sides, back; 5 required for engine-based categories), and specs. Set availability and delivery radius.",
-    "3. When you hit **Publish**, RIGShare walks you through the one-time setup just-in-time: identity verification (Stripe Identity, ~3 min) and Stripe Connect payout onboarding (~5 min). You only do this once.",
-    "4. Publish — your listing goes live, renters can book immediately, and you get a notification on each booking.",
+      ? "2. Start your listing right away at **https://tech.rigshare.app/list**. No verification is needed to DRAFT: add your title, rates, photos, and specs. For remote-access-eligible gear (AI compute, AI infrastructure, IoT sensors), set up remote access by connecting your machine with the RIGShare tunnel (renters then reach it only through RIGShare) or by entering your own HTTPS endpoint, plus an optional API key, which RIGShare stores encrypted. API sessions are relayed through RIGShare's session proxy, with request checks and rate limits, unless you allow direct connections."
+      : "2. Start your listing right away at **https://www.rigshare.app/list-equipment**. No verification is needed to DRAFT: add your title, 4-hour/daily/weekly/monthly rates, photos (front, rear, both sides and controls; at least one is required to publish), and specs. Set availability and delivery radius.",
+    "3. When you hit **Publish**, RIGShare walks you through the one-time setup just-in-time: identity verification (Stripe Identity: a government photo ID and a selfie) and Stripe Connect payout onboarding. You only do this once.",
+    "4. Publish: your listing goes live, renters can book it (or, on a request-to-book listing, send you a request to approve), and you get a notification on each booking.",
     "",
-    "**Listing directly from this chat:** with a RIGShare API key that has the `equipment:write` scope (create one at https://www.rigshare.app/enterprise; API keys need a Pro or Enterprise plan), the agent can either save your listing as a draft with `rigshare_save_draft_listing` (no verification needed; you add a camera photo in the RIGShare app, then the agent publishes it with `rigshare_publish_listing`), or publish in one step with `rigshare_create_listing` — title, rates, photos (https URLs), and remote-access config for tech hardware. The one-step path has **no draft — it publishes immediately**, so your identity verification and Stripe Connect payout setup must already be done once on the web (the tool's error tells you where if not).",
+    "**Listing directly from this chat:** with a RIGShare API key that has the `equipment:write` scope (create one at https://www.rigshare.app/enterprise; API keys need a Pro or Enterprise plan), the agent can either save your listing as a draft with `rigshare_save_draft_listing` (no verification needed; you add a camera photo in the RIGShare app, then the agent publishes it with `rigshare_publish_listing`), or publish in one step with `rigshare_create_listing`, with title, rates, photos (https URLs), and remote-access config for tech hardware. The one-step path has **no draft: it publishes immediately**, so your identity verification and Stripe Connect payout setup must already be done once on the web (the tool's error tells you where if not).",
     "",
     "## Ongoing",
     "",
     "- Manage bookings + approvals at https://www.rigshare.app/dashboard",
     "- Messages with renters in-app (never on personal phones)",
-    "- Payouts arrive 48h after each rental completes (Stripe Connect)",
+    "- Payouts via Stripe Connect: your share is released to your Stripe account 48 hours after each rental is complete; the bank deposit then follows Stripe's payout schedule",
     "- If damage is reported on return, the owner reviews it and may approve a charge. RIGShare charges the renter ONLY if the renter expressly accepts it, and never above the deposit figure displayed on the listing. RIGShare holds no deposit funds; renter silence never results in a charge, and the renter remains fully liable to the owner for actual damage.",
     "",
     "## Questions",
@@ -3140,8 +3140,8 @@ function renderEconomics(policy: NormalizedPolicy): string[] {
           : ""
     }; doesn't reduce your payout`,
     `- RIGShare holds NO security deposit. Physical listings may DISPLAY an owner-stated deposit figure (deposit_display_cents — null means none stated, 0 means the owner requires none); it is never held or charged unless the renter expressly accepts a damage claim, and an accepted claim is never charged above it. METERED per-minute Tech sessions display no figure; the renter authorizes a usage budget instead`,
-    "- Payouts via Stripe Connect, 48-hour hold after rental completion",
-    "- Buy-now-pay-later at checkout where offered (Klarna, Affirm, Zip) — improves your conversion with no extra work",
+    "- Payouts via Stripe Connect: your share is released to your Stripe account 48 hours after the rental is complete; the bank deposit then follows Stripe's payout schedule",
+    "- Buy-now-pay-later at checkout where offered (Klarna, Affirm, Zip)",
     "",
   ];
 }

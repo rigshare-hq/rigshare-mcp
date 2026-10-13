@@ -79,7 +79,7 @@ auth and respect the API key's scopes and, where set, its spend caps.
 - "I own a 4x H100 rig — is there a marketplace for this?"
 - "We have 3 excavators our crew only uses 60% of the time. Can we rent the rest out?"
 
-For any of these, the agent calls `rigshare_get_owner_onboarding` (optionally with the equipment type) and gets back the full pitch: commission rates, the right signup URL, the step-by-step process, and the division-specific pitch (remote-access for robotics/AI, GPS + insurance for construction).
+For any of these, the agent calls `rigshare_get_owner_onboarding` (optionally with the equipment type) and gets back the full pitch: commission rates, the right signup URL, the step-by-step process, and the division-specific pitch (remote access for AI compute, AI infrastructure and IoT sensors; handoff verification, condition photos and optional GPS tracking on paid plans for construction).
 
 ## Installation
 

@@ -340,8 +340,30 @@ check(
     fallbackTxt.includes("student_rate_active"),
 );
 check(
-  "onboarding: signup URL still present",
-  fallbackTxt.includes("rigshare.app/robotics-ai/register"),
+  "onboarding: Tech signup URL continues to the listing form",
+  fallbackTxt.includes("https://tech.rigshare.app/login?mode=signup&redirect=%2Flist") &&
+    !fallbackTxt.includes("robotics-ai/register"),
+);
+const onboardConstruction = await client.callTool({
+  name: "rigshare_get_owner_onboarding",
+  arguments: { equipment_type: "skid steer" },
+});
+const constructionTxt = textOf(onboardConstruction);
+check(
+  "onboarding (construction): signup URL continues to the listing form",
+  constructionTxt.includes("https://www.rigshare.app/signup?redirect=%2Flist-equipment"),
+);
+check(
+  "onboarding (construction): no insurance-verification claim",
+  !/insurance proof|verified before pickup|insurance verification/i.test(constructionTxt),
+);
+check(
+  "onboarding (construction): GPS is a paid-plan feature",
+  constructionTxt.includes("on paid plans: Enterprise on the website, Pro and Enterprise in the mobile apps"),
+);
+check(
+  "onboarding: no setup-time estimates or 'Payouts arrive 48h'",
+  !/~\d+ min|Payouts arrive 48h/.test(fallbackTxt + constructionTxt),
 );
 
 // ── (e2) publish_listing: outbound body uses the SERVER's field names, and a
