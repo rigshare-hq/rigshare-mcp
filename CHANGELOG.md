@@ -11,6 +11,8 @@ their own; those entries say which published release first included them.
 
 ## [Unreleased]
 
+## [2.2.1] — not yet published
+
 ### Changed
 - The bundled fallback copy of the policy (what `rigshare://pricing` returns
   when the live endpoint is unreachable) now matches the live
@@ -35,6 +37,14 @@ their own; those entries say which published release first included them.
   allowlist and concurrency limit, no IP restrictions or session duration caps),
   and states payout timing as a release to the owner's Stripe account 48 hours
   after the rental, with the bank deposit on Stripe's schedule. No tool,
+  parameter, resource or prompt was added, removed or renamed.
+- The text this server writes itself (tool, parameter, resource and prompt
+  descriptions, its own output lines, and the README) no longer uses em dashes;
+  text relayed from the RIGShare API is unchanged. A value the API did not
+  return now reads "unknown" (or "not rated" for a listing with no rating)
+  instead of a bare dash. The `require_mfa` parameter now describes multi-factor authentication
+  as a code from an authenticator app instead of naming TOTP, and says it is on
+  by default for remote-access listings and can be turned off. No tool,
   parameter, resource or prompt was added, removed or renamed.
 
 ## [2.2.0] — 2026-10-02

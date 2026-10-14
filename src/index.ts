@@ -76,7 +76,7 @@ const RIGSHARE_V1_API =
 // the user at rigshare.app for API key setup.
 const RIGSHARE_API_KEY = process.env.RIGSHARE_API_KEY;
 // Keep in sync with package.json "version".
-const VERSION = "2.2.0";
+const VERSION = "2.2.1";
 const USER_AGENT = `rigshare-mcp/${VERSION}`;
 // Bounded per-request timeout — a stalled endpoint must never block a tool.
 const FETCH_TIMEOUT_MS = 10_000;
@@ -441,7 +441,7 @@ const BOOKING_PARAM_DOCS = {
     "Answers to the renter-qualification questionnaire, required only when the listing requires renter qualification. The questionnaire is not available through this API, so if a booking is refused for qualification the renter must book that listing on the web; retrying here will not get past it.",
   qualification_version: "Version of the questionnaire the answers were given against; must match the current version.",
   idempotency_key:
-    "Optional, recommended: a new value for each booking you intend, the same value when retrying it (printable ASCII, up to 100 characters — a UUID works). A request that matches a pending, approved or confirmed booking you created in the last 5 minutes (same equipment, same dates — for a same-day remote session, the same UTC day — same duration type, and the same price, usage budget, compute environment, pickup/delivery choice and coverage choice) is never booked or charged a second time: with the same key, or with no key, you get that booking back, marked idempotent, with its payment state and next action; with a different key it is normally refused with HTTP 409 IDENTICAL_BOOKING_RECENT, which names the existing booking — confirm with the user before booking the same thing again (if the original request's key isn't on record, you get the booking back instead). Reusing a key for a request that doesn't match its booking is refused with HTTP 422 IDEMPOTENCY_KEY_REUSED: check that booking before booking again. For a per-minute (metered) listing, two requests with the same usage budget match whatever their length; a listing that serves one renter at a time has no room for a second same-day session anyway.",
+    "Optional, recommended: a new value for each booking you intend, the same value when retrying it (printable ASCII, up to 100 characters; a UUID works). A request that matches a pending, approved or confirmed booking you created in the last 5 minutes (same equipment; same dates, or for a same-day remote session the same UTC day; same duration type; and the same price, usage budget, compute environment, pickup/delivery choice and coverage choice) is never booked or charged a second time: with the same key, or with no key, you get that booking back, marked idempotent, with its payment state and next action; with a different key it is normally refused with HTTP 409 IDENTICAL_BOOKING_RECENT, which names the existing booking. Confirm with the user before booking the same thing again (if the original request's key isn't on record, you get the booking back instead). Reusing a key for a request that doesn't match its booking is refused with HTTP 422 IDEMPOTENCY_KEY_REUSED: check that booking before booking again. For a per-minute (metered) listing, two requests with the same usage budget match whatever their length; a listing that serves one renter at a time has no room for a second same-day session anyway.",
 } as const;
 
 // Every category a listing may use (the server rejects any other value).
@@ -482,7 +482,7 @@ const LISTING_PARAM_DOCS = {
   remote_endpoint: "https URL of the owner's service that renter sessions connect to.",
   remote_max_concurrent: "Maximum simultaneous renter sessions.",
   remote_require_mfa:
-    "Require renters to pass TOTP multi-factor authentication to start a session (default true). Agents cannot start sessions on such listings.",
+    "Require renters to enter a code from an authenticator app (multi-factor authentication, MFA) before a session starts. On by default for remote-access listings; set false to turn it off. Agents cannot start sessions on such listings.",
 } as const;
 
 // ─── Tool definitions (registered on the modern McpServer surface) ──────
@@ -607,7 +607,7 @@ registerRigTool(
   {
     title: "List my bookings",
     description:
-      "REQUIRES API KEY (RIGSHARE_API_KEY env var, bookings:read scope). Returns the bookings in which the authenticated user is the RENTER, newest first — confirmation code, status, equipment, dates, totals, and for METERED bookings the authorized budget and settled amount. Bookings on listings the user owns are not included; read one of those with rigshare_get_booking. Use this to check an existing rental before creating a new one, or to find a booking by confirmation code.",
+      "REQUIRES API KEY (RIGSHARE_API_KEY env var, bookings:read scope). Returns the bookings in which the authenticated user is the RENTER, newest first: confirmation code, status, equipment, dates, totals, and for METERED bookings the authorized budget and settled amount. Bookings on listings the user owns are not included; read one of those with rigshare_get_booking. Use this to check an existing rental before creating a new one, or to find a booking by confirmation code.",
     inputSchema: {
       status: z
         .enum([
@@ -637,7 +637,7 @@ registerRigTool(
   {
     title: "List my sessions",
     description:
-      "REQUIRES API KEY (sessions:read scope). Lists remote sessions on Robotics & AI bookings the authenticated user RENTS (the 50 most recent; no paging) — status, health, GPU allocation, total compute hours, cost so far. Use before starting a new session to check if one is already active.",
+      "REQUIRES API KEY (sessions:read scope). Lists remote sessions on Robotics & AI bookings the authenticated user RENTS (the 50 most recent; no paging): status, health, GPU allocation, total compute hours, cost so far. Use before starting a new session to check if one is already active.",
     inputSchema: {
       booking_id: z.string().uuid().optional().describe("Only sessions on this booking."),
       status: z
@@ -656,21 +656,21 @@ registerRigTool(
   {
     title: "Quote booking (dry run)",
     description: [
-      "REQUIRES API KEY (bookings:read scope). DRY-RUN price quote — computes the",
+      "REQUIRES API KEY (bookings:read scope). DRY-RUN price quote. Computes the",
       "EXACT cost a rigshare_create_booking would charge, but creates nothing and",
       "charges nothing. Call this FIRST, before rigshare_create_booking, to show",
       "the renter the full breakdown and get their consent before any money",
       "moves: rental subtotal, renter service fee (7%, or RIGShare's reduced",
-      "verified-student rate where that rate is in effect \u2014 always resolved",
+      "verified-student rate where that rate is in effect, always resolved",
       "server-side, never quoted from here), delivery, coverage/egress, and the",
       "grand total, all in cents",
       "plus formatted USD. NO security deposit is held, authorized, or charged on",
-      "any new booking — security_deposit_cents is 0, and deposit_display_cents",
+      "any new booking: security_deposit_cents is 0, and deposit_display_cents",
       "is the owner's DISPLAYED figure only (null = owner stated none, 0 = owner",
       "requires none): the ceiling RIGShare would charge ONLY if the renter later",
       "expressly accepts a damage claim; it is never part of the total. Prices",
       "are recomputed server-side from the equipment's canonical rates and the",
-      "renter's tier — identical to what booking charges; no client price is",
+      "renter's tier, identical to what booking charges; no client price is",
       "trusted. METERED (per-minute Tech) listings return the per-hour rate, the",
       "minimum session budget, and budget presets instead of a fixed total (no",
       "deposit figure either). Sales tax is added at checkout and not included",
@@ -718,18 +718,18 @@ registerRigTool(
       "for the authenticated user. Call rigshare_quote_booking FIRST to preview",
       "the exact cost (dry-run, nothing charged) and confirm it with the renter",
       "before committing money here. Server computes all prices from the",
-      "equipment's canonical rates — client-side price hints are ignored.",
+      "equipment's canonical rates, so client-side price hints are ignored.",
       "Enforces identity verification and, when the API key has them, its",
       "per-transaction and daily spend caps (both optional; a new key has",
       "neither, and there is no monthly cap). The caps are checked against",
       "the pre-tax amount, so sales tax can take the charge above them; for a",
       "METERED booking the full budget_usd counts against them.",
       "METERED listings (billing.mode === 'METERED' on the equipment, Tech",
-      "remote-access only): bill per minute instead of upfront — you MUST pass",
+      "remote-access only): bill per minute instead of upfront, and you MUST pass",
       "budget_usd (the maximum authorized session spend; only actual usage is",
       "charged, no deposit). PHYSICAL (non-remote) equipment: coverage_path is",
       "REQUIRED ('WAIVER' needs the renter's explicit, informed consent to the",
-      "damage waiver — never accept it on their behalf without asking;",
+      "damage waiver. Never accept it on their behalf without asking;",
       "'BYOCOI' means they'll upload their own insurance certificate).",
       "START TIME RULE: for FOUR_HOURS bookings pass start_date / end_date as",
       "ISO date-times WITH a UTC offset in the equipment's local time (e.g.",
@@ -801,7 +801,7 @@ registerRigTool(
     title: "Create listing",
     description: [
       "REQUIRES API KEY (equipment:write scope). Creates and immediately",
-      "publishes an equipment listing on behalf of the authenticated OWNER —",
+      "publishes an equipment listing on behalf of the authenticated OWNER:",
       "the one-step alternative to rigshare_save_draft_listing +",
       "rigshare_publish_listing. Works for both divisions: construction",
       "equipment and Robotics & AI hardware. remote_access (network rental)",
@@ -810,7 +810,7 @@ registerRigTool(
       "METERED (per-minute session billing) requires remote_access and",
       "hourly_rate_usd. Requirements enforced server-side: the owner account",
       "must have completed Stripe Identity verification AND Stripe Connect",
-      "payout onboarding (one-time, web only — the error tells you where), the",
+      "payout onboarding (one-time, web only, and the error tells you where), the",
       "account's plan must have listing capacity, a physical (non-remote)",
       "listing needs replacement_value_usd (refused with",
       "REPLACEMENT_VALUE_REQUIRED otherwise), and at least one photo URL is",
@@ -820,7 +820,7 @@ registerRigTool(
       "that listing's title, description, make/model/year/condition, rates",
       "and replacement value instead of creating a new one; photos, deposit,",
       "location, booking type and remote-access settings are not changed on",
-      "that path. Confirm price and details with the owner before calling —",
+      "that path. Confirm price and details with the owner before calling:",
       "this publishes to a live marketplace.",
     ].join(" "),
     inputSchema: {
@@ -900,13 +900,13 @@ registerRigTool(
     description: [
       "REQUIRES API KEY (equipment:read scope). Returns the unavailability",
       "windows (blocked date ranges) RIGShare holds for one of YOUR listings,",
-      "identified by its external_id — the inventory/SKU id you listed it under",
+      "identified by its external_id, the inventory/SKU id you listed it under",
       "(via rigshare_create_listing's external_id). Use this to reconcile your",
       "ERP/fleet calendar with RIGShare, or to check whether a date range is",
       "open before pushing new blocks with rigshare_sync_availability. If you",
       "pass starts_at + ends_at, the tool also reports whether that specific",
       "range overlaps a blocked window. NOTE: the endpoint keys ONLY on",
-      "external_id (an owner-scoped lookup) — it does not accept an equipment",
+      "external_id (an owner-scoped lookup). It does not accept an equipment",
       "UUID, and the windows returned are availability blocks, not renter",
       "bookings.",
     ].join(" "),
@@ -986,8 +986,8 @@ registerRigTool(
       "REQUIRES API KEY (sessions:write scope). Starts a remote session on a",
       "CONFIRMED or IN_PROGRESS Robotics & AI booking (SSH / Jupyter / VNC /",
       "API access) that the authenticated user rents. Sessions open 15 minutes",
-      "before the booking's start time. Returns the session access token —",
-      "shown ONCE, store it securely — plus the connection URL and allocated",
+      "before the booking's start time. Returns the session access token (shown",
+      "ONCE; store it securely), plus the connection URL and allocated",
       "specs. Calling it again for the same booking while its session is live",
       "returns that session instead of starting a second one; for SSH and API",
       "access that issues a new token and the previous one stops working.",
@@ -996,7 +996,7 @@ registerRigTool(
       "booking page on the web). For METERED bookings the per-minute clock",
       "runs while the session is active; call rigshare_end_session (or end the",
       "booking) to settle for exact usage. Equipment that requires MFA cannot",
-      "be started via API key — the renter must use the web app.",
+      "be started via API key. The renter must use the web app.",
     ].join(" "),
     inputSchema: {
       booking_id: z.string().uuid().describe("The booking to start a session on."),
@@ -1015,9 +1015,9 @@ registerRigTool(
       "Robotics & AI booking that is CONFIRMED or IN_PROGRESS: the server",
       "stops the per-minute billing clock, settles the charge for EXACT usage,",
       "releases the unused portion of the authorized budget, and marks the",
-      "booking COMPLETED — no further session can be started on it. Callable",
+      "booking COMPLETED, so no further session can be started on it. Callable",
       "by the booking's renter or the listing's owner. Call this as soon as",
-      "the renter is done — otherwise the per-minute meter keeps running until",
+      "the renter is done: otherwise the per-minute meter keeps running until",
       "a heartbeat hard-stop or the budget is exhausted, overcharging the",
       "renter. Returns the final compute hours + settled cost. Safe to retry:",
       "a booking whose billing is already settled returns an error, never a",
@@ -1037,7 +1037,7 @@ registerRigTool(
   {
     title: "Cancel booking",
     description: [
-      "REQUIRES API KEY (bookings:write scope). MONEY PATH — cancels a booking",
+      "REQUIRES API KEY (bookings:write scope). MONEY PATH: cancels a booking",
       "the authenticated user rents or owns AND issues any refund per RIGShare's",
       "published cancellation policy. When the listing's owner cancels a",
       "fixed-price booking the renter is refunded in full, and cancelling a still-PENDING request as",
@@ -1052,11 +1052,11 @@ registerRigTool(
       "it charged on an owner delivery fee that is itself being refunded: a",
       "booking that ends before pickup is confirmed returns the delivery fee in",
       "full and the service fee charged on it with it. The client CANNOT",
-      "dictate the refund amount or the refund rule — the optional reason is",
+      "dictate the refund amount or the refund rule. The optional reason is",
       "an audit note only.",
       "Bookings made under the current model carry NO deposit hold (RIGShare",
       "holds none), so there is nothing to release; a LEGACY pre-model booking's",
-      "real historical hold is released, never captured — the returned deposit",
+      "real historical hold is released, never captured. The returned deposit",
       "block reports what actually happened (had_hold/disposition). Safe on",
       "terminal state: cancelling an already-cancelled/completed/disputed booking",
       "returns an error, never a double refund. Returns the refund breakdown",
@@ -1086,12 +1086,12 @@ registerRigTool(
   {
     title: "Extend session budget",
     description: [
-      "REQUIRES API KEY (sessions:write scope). MONEY PATH — raises the authorized",
+      "REQUIRES API KEY (sessions:write scope). MONEY PATH: raises the authorized",
       "per-minute budget on a running METERED (per-minute) Robotics & AI session,",
       "so a renter whose budget is about to exhaust can keep going. The server",
       "places an additional authorization hold on the renter's saved card and",
       "raises the budget, computing the amount from the booking's per-minute",
-      "rate — the client never sets the charge. Only the booking's RENTER can",
+      "rate. The client never sets the charge. Only the booking's RENTER can",
       "extend. Refused (HTTP 403) before any hold is placed when auto-pay is not",
       "enabled on the API key (it is off on a new key; the renter can then extend",
       "from the booking page) or when the extension would exceed the key's",
@@ -1124,7 +1124,7 @@ registerRigTool(
       "REQUIRES API KEY (sessions:read scope). Live budget snapshot for a METERED",
       "(per-minute) Robotics & AI booking: authorized budget vs. what's been used,",
       "accrued cost so far, a low-budget warning, and the available extension",
-      "options. Read-only — moves no money. Call this before a session runs out to",
+      "options. Read-only: moves no money. Call this before a session runs out to",
       "decide whether to rigshare_extend_session. Visible to the booking's renter",
       "or the equipment owner.",
     ].join(" "),
@@ -1143,12 +1143,12 @@ registerRigTool(
     title: "Save draft listing",
     description: [
       "REQUIRES API KEY (equipment:write scope). Saves a HALF-FINISHED equipment",
-      "listing as a DRAFT on behalf of the authenticated OWNER — the listing",
+      "listing as a DRAFT on behalf of the authenticated OWNER. The listing",
       "fields of rigshare_create_listing except photos, external_id and",
       "security_ack, and nothing goes live. Drafts are UNGATED: no",
       "identity verification and no Stripe Connect payout setup are needed to",
-      "DRAFT (matching RIGShare's draft-first flow). Those gates — plus at least",
-      "one photo — are required only when you PUBLISH (on the web, or with",
+      "DRAFT (matching RIGShare's draft-first flow). Those gates (plus at least",
+      "one photo) are required only when you PUBLISH (on the web, or with",
       "rigshare_publish_listing). No security_ack is required to draft a remote-",
       "access listing; it's required at publish. Idempotent per draft_session_id:",
       "repeat calls with the same id update the same draft, writing only the",
@@ -1159,7 +1159,7 @@ registerRigTool(
       "yet or wants to finish the listing later. To PUBLISH later the listing",
       "needs at least one camera photo added in the RIGShare app (agents",
       "cannot upload photos). A physical (non-remote) listing needs a",
-      "replacement value (replacement_value_usd) to publish — the server",
+      "replacement value (replacement_value_usd) to publish: the server",
       "refuses with REPLACEMENT_VALUE_REQUIRED; displaying a deposit above $0",
       "also needs it (DEPOSIT_ABOVE_LIMIT), which caps the figure at 10% of",
       "the value ($25–$1,000, never held). Drafts default to INSTANT booking,",
@@ -1227,8 +1227,8 @@ registerRigTool(
     description: [
       "REQUIRES API KEY (bookings:read scope). Returns ONE booking the",
       "authenticated user rents or owns: status, whether payment is settled,",
-      "the money snapshot, the active remote session (if any) and — most",
-      "useful — next_action: who has to act next (renter / owner / nobody),",
+      "the money snapshot, the active remote session (if any) and, most",
+      "useful, next_action: who has to act next (renter / owner / nobody),",
       "a plain-language instruction you can relay verbatim, and the exact URL",
       "where the human does it. Poll this after rigshare_create_booking. For a",
       "request-to-book listing the flow is owner approves → renter pays at the",
@@ -1255,7 +1255,7 @@ registerRigTool(
       "the metered budget vs billed, and the latest telemetry snapshot (CPU /",
       "GPU / memory / latency / GPU temperature) for ONE remote session on a",
       "booking the authenticated user rents. Telemetry is null until the node",
-      "reports — it is never fabricated. The one-time access token is shown",
+      "reports. It is never fabricated. The one-time access token is shown",
       "only by rigshare_start_session and is never returned again.",
     ].join(" "),
     inputSchema: {
@@ -1278,8 +1278,8 @@ registerRigTool(
       "rigshare_save_draft_listing to ACTIVE on the marketplace, through the",
       "SAME gate the web and mobile apps use: identity verification, Stripe",
       "Connect payout setup, the tier listing limit, completeness (basics,",
-      "rates, location — including a street address for a physical INSTANT",
-      "listing — and at least one camera photo added in the RIGShare app),",
+      "rates, location (including a street address for a physical INSTANT",
+      "listing) and at least one camera photo added in the RIGShare app),",
       "and content moderation. A physical (non-remote) listing needs a",
       "replacement value to publish (the server refuses with",
       "REPLACEMENT_VALUE_REQUIRED); displaying a deposit above $0 also needs it",
@@ -1327,7 +1327,7 @@ server.registerResource(
   {
     title: "RIGShare pricing & fees (canonical)",
     description:
-      "Live commission tiers, renter service fee (including the reduced verified-student rate and `student_rate_active`, which says whether that rate is currently being charged at all), subscription prices, listing caps, security-deposit rules, and cancellation schedules — sourced live from /api/public/v1/policy. Falls back to bundled copy if unreachable, in which case `student_rate_active` is null: unknown, not yes.",
+      "Live commission tiers, renter service fee (including the reduced verified-student rate and `student_rate_active`, which says whether that rate is currently being charged at all), subscription prices, listing caps, security-deposit rules, and cancellation schedules, sourced live from /api/public/v1/policy. Falls back to bundled copy if unreachable, in which case `student_rate_active` is null: unknown, not yes.",
     mimeType: "application/json",
   },
   async (uri) => {
@@ -1335,7 +1335,7 @@ server.registerResource(
     const payload = raw ?? {
       ...BUNDLED_POLICY,
       source: "bundled-fallback",
-      note: "Live /policy endpoint unreachable — bundled pricing/fee copy only (cancellation & onboarding steps omitted).",
+      note: "Live /policy endpoint unreachable: bundled pricing/fee copy only (cancellation & onboarding steps omitted).",
     };
     return {
       contents: [
@@ -1355,7 +1355,7 @@ server.registerResource(
   {
     title: "RIGShare owner onboarding (canonical)",
     description:
-      "Draft-first owner onboarding steps + the canonical economics (commission, fees, deposit) an owner sees — sourced from /api/public/v1/policy. Pair with the rigshare_get_owner_onboarding tool for the full division-specific pitch + signup URLs.",
+      "Draft-first owner onboarding steps + the canonical economics (commission, fees, deposit) an owner sees, sourced from /api/public/v1/policy. Pair with the rigshare_get_owner_onboarding tool for the full division-specific pitch + signup URLs.",
     mimeType: "application/json",
   },
   async (uri) => {
@@ -1396,7 +1396,7 @@ server.registerResource(
   {
     title: "RIGShare equipment categories",
     description:
-      "All equipment categories with at least one active listing, grouped by division, with per-category listing counts — sourced from /api/public/v1/categories (cached ~10 min).",
+      "All equipment categories with at least one active listing, grouped by division, with per-category listing counts, sourced from /api/public/v1/categories (cached ~10 min).",
     mimeType: "application/json",
   },
   async (uri) => {
@@ -1492,7 +1492,7 @@ server.registerPrompt(
     const workload =
       typeof args.workload === "string" && args.workload.trim()
         ? args.workload.trim()
-        : "(describe the workload — e.g. LLM fine-tuning, inference, rendering)";
+        : "(describe the workload, e.g. LLM fine-tuning, inference, rendering)";
     const budget =
       typeof args.budget === "string" && args.budget.trim() ? args.budget.trim() : "(optional)";
     const region =
@@ -1512,7 +1512,7 @@ server.registerPrompt(
               "Please:",
               "1. Call rigshare_search_equipment (division: \"robotics-ai\", plus compute_architecture / max_price_daily_usd / city / remote_only filters as relevant) to find matching instances.",
               "2. Call rigshare_get_equipment on the best candidate for full specs, remote-access type, and whether it is METERED (per-minute) billing.",
-              "3. Call rigshare_quote_booking to show me the EXACT cost (dry run — nothing is charged) and confirm it with me before booking.",
+              "3. Call rigshare_quote_booking to show me the EXACT cost (dry run, nothing is charged) and confirm it with me before booking.",
               "4. Only after I confirm, call rigshare_create_booking. For METERED listings pass budget_usd (my authorized session spend). Then rigshare_start_session to begin, and rigshare_get_session_usage / rigshare_extend_session / rigshare_end_session to track, extend, and settle.",
             ].join("\n"),
           },
@@ -1548,7 +1548,7 @@ server.registerPrompt(
               "",
               "Please:",
               `1. Call rigshare_get_owner_onboarding (equipment_type: "${et}") for the current pitch, commission tiers, and the right signup URL.`,
-              "2. If I have a RIGShare API key, call rigshare_save_draft_listing to capture the listing as a draft (no verification needed to draft) — collect title, description, rates, location, replacement value, and (for remote-access gear) remote-access config from me first. Photos can't be sent with a draft; I add at least one camera photo in the RIGShare app.",
+              "2. If I have a RIGShare API key, call rigshare_save_draft_listing to capture the listing as a draft (no verification needed to draft). Collect title, description, rates, location, replacement value, and (for remote-access gear) remote-access config from me first. Photos can't be sent with a draft; I add at least one camera photo in the RIGShare app.",
               "3. When I'm ready to go live, call rigshare_publish_listing with the draft_id. Identity verification + Stripe Connect payout setup are required once at publish (the tool's error tells me where if they aren't done). If my verification and payout setup are already done and I have photo URLs, rigshare_create_listing publishes in one step instead of the draft flow.",
             ].join("\n"),
           },
@@ -1629,7 +1629,7 @@ async function searchEquipment(args: Record<string, unknown>) {
         ? " If you OWN this kind of hardware (GPU / robot / drone / 3D printer / etc.) and might want to rent it out, call rigshare_get_owner_onboarding for the listing pitch."
         : args.division === "construction"
           ? " If you OWN this kind of equipment and might want to rent it out, call rigshare_get_owner_onboarding."
-          : " If the user OWNS equipment like this, rigshare_get_owner_onboarding returns the listing pitch — RIGShare is actively growing supply in under-represented categories.";
+          : " If the user OWNS equipment like this, rigshare_get_owner_onboarding returns the listing pitch. RIGShare is actively growing supply in under-represented categories.";
     return toolData(
       `No active RIGShare listings matched those filters. Try broadening (remove location, widen price range, or switch division to "all"). Total in the matching category: 0.${divisionNote}`,
       { listings: [], pagination, total: (pagination as any).total ?? 0 },
@@ -1665,7 +1665,7 @@ async function searchEquipment(args: Record<string, unknown>) {
     return [
       `${i + 1}. ${l.title} (${l.division}/${l.category})`,
       `   ${rateStr}${rateStr ? " · " : ""}${location}${arch}${mfa}${metered}`,
-      `   Rating: ${l.rating?.average ?? "—"} (${l.rating?.count ?? 0} reviews)`,
+      `   Rating: ${l.rating?.average ?? "not rated"} (${l.rating?.count ?? 0} reviews)`,
       `   URL: ${l.url}`,
     ].join("\n");
   });
@@ -1699,7 +1699,7 @@ async function getEquipment(args: Record<string, unknown>) {
 
   const billing =
     l.billing?.mode === "METERED"
-      ? `Billing: METERED — billed per minute of session time at $${l.billing.metered_rate_usd_per_hour ?? "?"}/hr. Booking authorizes a budget (pass budget_usd to rigshare_create_booking); only actual usage is charged, no deposit.`
+      ? `Billing: METERED, billed per minute of session time at $${l.billing.metered_rate_usd_per_hour ?? "?"}/hr. Booking authorizes a budget (pass budget_usd to rigshare_create_booking); only actual usage is charged, no deposit.`
       : null;
 
   const description = [
@@ -1710,8 +1710,8 @@ async function getEquipment(args: Record<string, unknown>) {
     `Rates: ${rates || "contact owner"}`,
     billing,
     remote,
-    `Owner: ${l.owner?.display_name || "—"}${l.owner?.verified ? " (ID verified)" : ""}`,
-    `Rating: ${l.rating?.average ?? "—"} (${l.rating?.count ?? 0} reviews)`,
+    `Owner: ${l.owner?.display_name || "unknown"}${l.owner?.verified ? " (ID verified)" : ""}`,
+    `Rating: ${l.rating?.average ?? "not rated"} (${l.rating?.count ?? 0} reviews)`,
     "",
     l.description || "",
     "",
@@ -1743,7 +1743,7 @@ async function listCategories() {
     lines.push(`## ${division.toUpperCase()}`);
     for (const c of list.sort((a, b) => b.listing_count - a.listing_count)) {
       lines.push(
-        `- ${c.category} (${c.listing_count} listing${c.listing_count === 1 ? "" : "s"})${c.description ? ` — ${c.description}` : ""}`,
+        `- ${c.category} (${c.listing_count} listing${c.listing_count === 1 ? "" : "s"})${c.description ? `: ${c.description}` : ""}`,
       );
     }
     lines.push("");
@@ -1970,11 +1970,11 @@ async function listMyBookings(args: Record<string, unknown>) {
     const moneyLine = isMetered
       ? b.meterBilledCents != null
         ? `   Metered (per-minute) · Settled: $${(b.meterBilledCents / 100).toFixed(2)} of $${((b.meterBudgetCents || 0) / 100).toFixed(2)} budget`
-        : `   Metered (per-minute) · Budget authorized: $${((b.meterBudgetCents || b.totalAmount || 0) / 100).toFixed(2)} — charged only for minutes used`
+        : `   Metered (per-minute) · Budget authorized: $${((b.meterBudgetCents || b.totalAmount || 0) / 100).toFixed(2)} (charged only for minutes used)`
       : `   Total: $${((b.totalAmount || 0) / 100).toFixed(2)}${depositPart}`;
     return [
-      `${i + 1}. ${b.confirmationCode} — ${b.status}`,
-      `   ${b.equipment?.title || "—"} (${b.equipment?.category || "—"})`,
+      `${i + 1}. ${b.confirmationCode}: ${b.status}`,
+      `   ${b.equipment?.title || "unknown"} (${b.equipment?.category || "unknown"})`,
       `   ${new Date(b.startDate).toLocaleDateString()} → ${new Date(b.endDate).toLocaleDateString()} · ${b.durationType}`,
       moneyLine,
       `   Booking ID: ${b.id}`,
@@ -2001,7 +2001,7 @@ async function listMySessions(args: Record<string, unknown>) {
   }
   const lines = sessions.map((s, i) => {
     return [
-      `${i + 1}. ${s.accessType} session — status: ${s.status} (health: ${s.healthStatus})`,
+      `${i + 1}. ${s.accessType} session, status: ${s.status} (health: ${s.healthStatus})`,
       `   Booking ID: ${s.bookingId}`,
       `   Started: ${s.startedAt ? new Date(s.startedAt).toLocaleString() : "not started"}`,
       `   Compute hours: ${s.totalComputeHours ?? 0} · Cost so far: $${((s.totalCostCents || 0) / 100).toFixed(2)}`,
@@ -2062,7 +2062,7 @@ async function quoteBooking(args: Record<string, unknown>) {
     );
     return toolData(
       [
-        `Booking quote (METERED — billed per minute):`,
+        `Booking quote (METERED, billed per minute):`,
         ``,
         `Rate: ${d.rate_hourly_usd || dollars(d.rate_hourly_cents)}/hr`,
         `Minimum session budget: ${d.min_budget_usd || dollars(d.min_budget_cents)}`,
@@ -2083,7 +2083,7 @@ async function quoteBooking(args: Record<string, unknown>) {
   // FIXED listing: full pre-tax breakdown (server-computed).
   const f = d.formatted || {};
   const lines = [
-    `Booking quote (estimate — nothing is charged):`,
+    `Booking quote (estimate only, nothing is charged):`,
     ``,
     `Rental (${d.rental_days ?? "?"} day${d.rental_days === 1 ? "" : "s"}): ${f.rental_subtotal || dollars(d.rental_subtotal_cents)}`,
     (d.delivery_fee_cents || 0) > 0 ? `Delivery: ${f.delivery_fee || dollars(d.delivery_fee_cents)}` : null,
@@ -2098,7 +2098,7 @@ async function quoteBooking(args: Record<string, unknown>) {
       ? null
       : d.deposit_display_cents === 0
         ? `Deposit: none required by this owner`
-        : `Deposit (displayed on the listing — never held; charged only if you expressly accept a damage claim, and never more than this figure): ${f.deposit_display || dollars(d.deposit_display_cents)}`,
+        : `Deposit (displayed on the listing, never held; charged only if you expressly accept a damage claim, and never more than this figure): ${f.deposit_display || dollars(d.deposit_display_cents)}`,
     `Grand total: ${f.total_amount || dollars(d.total_amount_cents)}`,
     ``,
     d.tax?.note || "Sales tax is calculated at checkout and not included in this estimate.",
@@ -2144,13 +2144,13 @@ async function createBooking(args: Record<string, unknown>) {
   const d = (res.data || {}) as any;
   // A duplicate replay returns the EXISTING booking (see idempotency_key); it
   // was not created by this call.
-  const bookingId = d.booking_id || "—";
-  const viewUrl = d.url || `https://www.rigshare.app/booking/${bookingId}`;
+  const bookingId = d.booking_id || "unknown";
+  const viewUrl = d.url || (d.booking_id ? `https://www.rigshare.app/booking/${d.booking_id}` : null);
   const isMetered = d.billing_mode === "METERED";
 
   const moneyLines = isMetered
     ? [
-        `Billing: METERED (per minute) — budget authorized: $${((d.meter_budget_cents || d.total_amount || 0) / 100).toFixed(2)}`,
+        `Billing: METERED (per minute), budget authorized: $${((d.meter_budget_cents || d.total_amount || 0) / 100).toFixed(2)}`,
         `You are only charged for minutes used; no deposit is held.`,
       ]
     : [
@@ -2161,7 +2161,7 @@ async function createBooking(args: Record<string, unknown>) {
           ? `Deposit: this owner has not stated a deposit figure (nothing is held either way)`
           : d.deposit_display_cents === 0
             ? `Deposit: none required by this owner`
-            : `Deposit (displayed on the listing — never held; charged only if you expressly accept a damage claim): $${(d.deposit_display_cents / 100).toFixed(2)}`,
+            : `Deposit (displayed on the listing, never held; charged only if you expressly accept a damage claim): $${(d.deposit_display_cents / 100).toFixed(2)}`,
       ];
 
   const payment = d.payment || {};
@@ -2171,22 +2171,22 @@ async function createBooking(args: Record<string, unknown>) {
   const replayPaymentLine = payment.settled
     ? "Payment: already settled."
     : d.next_action?.code === "PAY"
-      ? "Payment: none has been recorded yet — see the next step below."
+      ? "Payment: none has been recorded yet. See the next step below."
       : d.status === "PENDING"
-        ? "Payment: none yet — the owner approves the request first; see the next step below."
-        : "Payment: not settled yet — do not pay again; see the next step below.";
+        ? "Payment: none yet, because the owner approves the request first; see the next step below."
+        : "Payment: not settled yet, so do not pay again; see the next step below.";
   const paymentLine =
     payment.status === "paid"
-      ? "Payment: charged via auto-pay — booking is CONFIRMED."
+      ? "Payment: charged via auto-pay. Booking is CONFIRMED."
       : payment.status === "authorized"
-        ? "Payment: session budget hold authorized via auto-pay — booking is CONFIRMED."
+        ? "Payment: session budget hold authorized via auto-pay. Booking is CONFIRMED."
         : payment.status === "failed"
-          ? `Payment: auto-pay FAILED — ${payment.error || "complete payment manually"}. The renter must finish checkout at the booking URL.`
+          ? `Payment: auto-pay FAILED (${payment.error || "complete payment manually"}). The renter must finish checkout at the booking URL.`
           : /payment is processing|do not pay again/i.test(d.next_action?.description || "")
             ? "Payment: in progress. Do not pay again; check the booking again shortly for the outcome."
             : d.status === "APPROVED"
-              ? "Payment: not yet paid — no owner approval is needed; the renter completes checkout at the booking URL now."
-              : "Payment: pending — the renter completes checkout at the booking URL after the owner approves.";
+              ? "Payment: not yet paid, and no owner approval is needed; the renter completes checkout at the booking URL now."
+              : "Payment: pending, and the renter completes checkout at the booking URL after the owner approves.";
 
   return toolText(
     [
@@ -2194,14 +2194,13 @@ async function createBooking(args: Record<string, unknown>) {
         ? "This matches a booking you created in the last few minutes, so nothing new was booked or charged. The existing booking:"
         : "Booking created:",
       ``,
-      `Confirmation code: ${d.confirmation_code || "—"}`,
+      `Confirmation code: ${d.confirmation_code || "unknown"}`,
       `Booking ID: ${bookingId}`,
       `Status: ${d.status || "PENDING"}`,
       // A replay carries no totals, only its payment state.
       ...(d.idempotent ? [replayPaymentLine] : [...moneyLines, paymentLine]),
       ``,
-      `View at: ${viewUrl}`,
-      ``,
+      ...(viewUrl ? [`View at: ${viewUrl}`, ``] : []),
       renderNextAction(d.next_action, d.status),
     ].join("\n"),
   );
@@ -2217,7 +2216,7 @@ async function createListing(args: Record<string, unknown>) {
   // schema can't express (photos is optional, but must be non-empty to create).
   const photos = Array.isArray(args.photos) ? args.photos : [];
   if (photos.length === 0) {
-    return toolError("At least one photo is required — pass photos: [{url: 'https://…'}]. RIGShare moderates, watermarks, and re-hosts them.");
+    return toolError("At least one photo is required. Pass photos: [{url: 'https://…'}]. RIGShare moderates, watermarks, and re-hosts them.");
   }
 
   const remote = (args.remote_access || undefined) as Record<string, unknown> | undefined;
@@ -2226,7 +2225,7 @@ async function createListing(args: Record<string, unknown>) {
   // with an actionable message instead of returning an opaque 400.
   if (remote && remote.security_ack !== true) {
     return toolError(
-      "Remote-access listings require security_ack: true — you attest the endpoint is secured and accept the Terms & Liability Waiver.",
+      "Remote-access listings require security_ack: true. You attest the endpoint is secured and accept the Terms & Liability Waiver.",
     );
   }
   const body: Record<string, unknown> = {
@@ -2286,16 +2285,16 @@ async function createListing(args: Record<string, unknown>) {
   const photoNote = updatedExisting
     ? `\nPhotos: unchanged (an existing listing with this external_id was updated; the photos sent were not applied).`
     : d.photo_errors && d.photo_errors.length > 0
-      ? `\nPhotos: ${d.photos_ingested} ingested, ${d.photo_errors.length} FAILED — ${d.photo_errors.map((e: any) => `${e.url}: ${e.error}`).join("; ")}`
+      ? `\nPhotos: ${d.photos_ingested} ingested, ${d.photo_errors.length} FAILED: ${d.photo_errors.map((e: any) => `${e.url}: ${e.error}`).join("; ")}`
       : `\nPhotos: ${d.photos_ingested} ingested (moderated + watermarked).`;
 
   return toolText(
     [
       updatedExisting ? `Existing listing updated (matched external_id):` : `Listing created:`,
       ``,
-      `Listing ID: ${eq.id || "—"}`,
+      `Listing ID: ${eq.id || "unknown"}`,
       `Status: ${listingStatus}`,
-      `${eq.title || args.title} — $${args.daily_rate_usd}/day${eq.billing_mode === "METERED" ? ` · METERED at $${args.hourly_rate_usd}/hr (billed per minute)` : ""}`,
+      `${eq.title || args.title}: $${args.daily_rate_usd}/day${eq.billing_mode === "METERED" ? ` · METERED at $${args.hourly_rate_usd}/hr (billed per minute)` : ""}`,
       photoNote,
       ``,
       listingStatus === "ACTIVE"
@@ -2319,7 +2318,7 @@ async function checkAvailability(args: Record<string, unknown>) {
     typeof args.external_id === "string" ? args.external_id.trim() : "";
   if (!externalId) {
     return toolError(
-      "external_id is required — the inventory/SKU id you listed the equipment under (rigshare_create_listing's external_id). The availability endpoint keys only on external_id, not a RIGShare equipment UUID.",
+      "external_id is required: the inventory/SKU id you listed the equipment under (rigshare_create_listing's external_id). The availability endpoint keys only on external_id, not a RIGShare equipment UUID.",
     );
   }
 
@@ -2342,11 +2341,11 @@ async function checkAvailability(args: Record<string, unknown>) {
 
   const blockLines =
     blocked.length === 0
-      ? ["No unavailability windows — the listing is fully open on RIGShare's calendar."]
+      ? ["No unavailability windows: the listing is fully open on RIGShare's calendar."]
       : blocked.map((b, i) => {
           const start = new Date(b.starts_at);
           const end = new Date(b.ends_at);
-          return `${i + 1}. ${start.toLocaleDateString()} → ${end.toLocaleDateString()}${b.reason ? ` — ${b.reason}` : ""}`;
+          return `${i + 1}. ${start.toLocaleDateString()} → ${end.toLocaleDateString()}${b.reason ? ` (${b.reason})` : ""}`;
         });
 
   // Optional requested-range check: does [starts_at, ends_at) overlap any
@@ -2368,7 +2367,7 @@ async function checkAvailability(args: Record<string, unknown>) {
         new Date(b.ends_at).getTime() > reqStart.getTime(),
     );
     rangeNote = overlaps
-      ? `\nRequested range ${reqStart.toLocaleDateString()} → ${reqEnd.toLocaleDateString()}: OVERLAPS a blocked window — NOT available.`
+      ? `\nRequested range ${reqStart.toLocaleDateString()} → ${reqEnd.toLocaleDateString()}: OVERLAPS a blocked window, so NOT available.`
       : `\nRequested range ${reqStart.toLocaleDateString()} → ${reqEnd.toLocaleDateString()}: free of blocked windows (subject to any existing renter bookings, which aren't listed here).`;
     requestedRange = {
       starts_at: String(args.starts_at),
@@ -2407,7 +2406,7 @@ async function syncAvailability(args: Record<string, unknown>) {
     typeof args.external_id === "string" ? args.external_id.trim() : "";
   if (!externalId) {
     return toolError(
-      "external_id is required — the inventory/SKU id of the listing whose calendar you're syncing (rigshare_create_listing's external_id).",
+      "external_id is required: the inventory/SKU id of the listing whose calendar you're syncing (rigshare_create_listing's external_id).",
     );
   }
   // blocks is validated as an array by the Zod input schema before this handler.
@@ -2467,7 +2466,7 @@ async function syncAvailability(args: Record<string, unknown>) {
   const conflictLines = conflicts.map((c: any, i: number) => {
     const start = new Date(c.starts_at);
     const end = new Date(c.ends_at);
-    return `   ${i + 1}. ${start.toLocaleDateString()} → ${end.toLocaleDateString()}${c.reason ? ` — ${c.reason}` : ""}`;
+    return `   ${i + 1}. ${start.toLocaleDateString()} → ${end.toLocaleDateString()}${c.reason ? ` (${c.reason})` : ""}`;
   });
 
   return toolText(
@@ -2477,7 +2476,7 @@ async function syncAvailability(args: Record<string, unknown>) {
       `Status: ${result.status || "synced"}`,
       result.equipment_id ? `Equipment: ${result.equipment_id}` : null,
       `Blocks applied: ${result.blocks_created ?? summary.blocks_created ?? 0}`,
-      `Conflicts (skipped — an approved, confirmed or in-progress RIGShare booking already covers them): ${result.blocks_conflicting ?? summary.conflicts ?? 0}`,
+      `Conflicts (skipped: an approved, confirmed or in-progress RIGShare booking already covers them): ${result.blocks_conflicting ?? summary.conflicts ?? 0}`,
       conflictLines.length ? `\nConflicting windows (not blocked):\n${conflictLines.join("\n")}` : "",
       ``,
       `Snapshot semantics: these blocks REPLACED the previously-synced set for this external_id.`,
@@ -2512,16 +2511,16 @@ async function startSession(args: Record<string, unknown>) {
       // already live on the booking, so the header claims neither.
       `Remote session (new, or the one already live on this booking):`,
       ``,
-      `Session ID: ${s.session_id || "—"}`,
+      `Session ID: ${s.session_id || "unknown"}`,
       `Status: ${s.status || "provisioning"}`,
-      `Access type: ${s.access_type || "—"}`,
+      `Access type: ${s.access_type || "unknown"}`,
       connectionLine(s),
       s.access_token
-        ? `Access token (shown ONCE — store it securely, it cannot be retrieved again; for SSH/API access, calling rigshare_start_session again while this session is live issues a replacement and this one stops working): ${s.access_token}`
+        ? `Access token (shown ONCE and cannot be retrieved again, so store it securely; for SSH/API access, calling rigshare_start_session again while this session is live issues a replacement and this one stops working): ${s.access_token}`
         : null,
       specs.length ? specs.join(" · ") : null,
       ``,
-      `If this booking is METERED, the per-minute clock runs while this session is active — call rigshare_end_session when done to settle for exact usage.`,
+      `If this booking is METERED, the per-minute clock runs while this session is active. Call rigshare_end_session when done to settle for exact usage.`,
     ]
       .filter((l) => l !== null)
       .join("\n"),
@@ -2561,7 +2560,7 @@ async function endSession(args: Record<string, unknown>) {
       `Metered session settled:`,
       ``,
       `Booking ID: ${d.booking_id || args.booking_id}`,
-      `Compute hours used: ${computeHours ?? "—"}${d.used_minutes != null ? ` (${d.used_minutes} min)` : ""}`,
+      `Compute hours used: ${computeHours ?? "unknown"}${d.used_minutes != null ? ` (${d.used_minutes} min)` : ""}`,
       `Settled cost: $${Number(billedUsd).toFixed(2)}`,
       `The per-minute meter has stopped; the unused portion of the authorized budget has been released.`,
     ].join("\n"),
@@ -2611,7 +2610,7 @@ async function cancelBooking(args: Record<string, unknown>) {
     // automatically (also when no charge could be confirmed); the amounts here
     // are not final until RIGShare staff complete it.
     refund.status === "refund_pending"
-      ? `Refund status: PENDING — a refund may be owed that could not be issued automatically; RIGShare staff are alerted and complete it by hand. The refunded and retained amounts are not final.`
+      ? `Refund status: PENDING. A refund may be owed that could not be issued automatically; RIGShare staff are alerted and complete it by hand. The refunded and retained amounts are not final.`
       : refund.status
         ? `Refund status: ${refund.status}`
         : null,
@@ -2622,7 +2621,7 @@ async function cancelBooking(args: Record<string, unknown>) {
     // before RIGShare stopped holding deposits) — say so honestly; "never
     // held" would be false for exactly those bookings.
     deposit.had_hold
-      ? `Security deposit hold: ${usd(deposit.amount_usd, deposit.amount_cents)} — ${deposit.disposition === "released" ? "released (not charged)" : deposit.disposition}`
+      ? `Security deposit hold: ${usd(deposit.amount_usd, deposit.amount_cents)}, ${deposit.disposition === "released" ? "released (not charged)" : deposit.disposition}`
       : `Deposit: none was held (RIGShare holds no deposit on new bookings)`,
     d.settled
       ? `Metered usage settled: ${usd(d.billed_usd, d.billed_cents)} charged for actual usage`
@@ -2684,7 +2683,7 @@ async function extendSession(args: Record<string, unknown>) {
         ? `New total authorized budget: ${newTotal}`
         : `New total authorized budget: could not be read back. The hold above was placed; check rigshare_get_session_usage for the current budget rather than extending again.`,
       ``,
-      `Only actual usage is charged — call rigshare_end_session when done to settle and release the unused budget.`,
+      `Only actual usage is charged. Call rigshare_end_session when done to settle and release the unused budget.`,
     ].join("\n"),
   );
 }
@@ -2712,7 +2711,7 @@ async function getSessionUsage(args: Record<string, unknown>) {
   if (d.finalized) {
     return toolData(
       [
-        `Metered session — SETTLED (billing closed):`,
+        `Metered session, SETTLED (billing closed):`,
         ``,
         `Booking ID: ${d.booking_id || args.booking_id}`,
         `Final settled cost: ${dollars(d.billedCents)}`,
@@ -2738,7 +2737,7 @@ async function getSessionUsage(args: Record<string, unknown>) {
       `Accrued so far: ${dollars(d.totalCents)} (usage ${dollars(d.usageCents)} + fees ${dollars(d.serviceFeeCents)}) over ${d.usedMinutes ?? 0} min`,
       `Remaining budget: ~${d.remainingMinutes ?? 0} more minutes affordable`,
       `Active session: ${d.hasActiveSession ? "yes" : "no"}`,
-      d.lowBudget ? `⚠ LOW BUDGET — extend soon (rigshare_extend_session) to avoid an auto-stop.` : null,
+      d.lowBudget ? `⚠ LOW BUDGET: extend soon (rigshare_extend_session) to avoid an auto-stop.` : null,
       optionLines.length ? `\nExtension options:\n${optionLines.join("\n")}` : "",
     ]
       .filter((l) => l !== null)
@@ -2799,7 +2798,7 @@ async function saveDraftListing(args: Record<string, unknown>) {
     const sid = (res.data as any)?.draft_session_id;
     return toolError(
       draftId
-        ? `${res.error} (draft saved as ${draftId}${sid ? `, session ${sid}` : ""} — fix the field and re-save with the same draft_session_id).`
+        ? `${res.error} (draft saved as ${draftId}${sid ? `, session ${sid}` : ""}). Fix the field and re-save with the same draft_session_id.`
         : res.error,
     );
   }
@@ -2809,12 +2808,12 @@ async function saveDraftListing(args: Record<string, unknown>) {
     [
       `Listing saved as draft:`,
       ``,
-      `Draft ID: ${d.draft_id || "—"}`,
-      `Resume key (draft_session_id): ${d.draft_session_id || "—"}`,
+      `Draft ID: ${d.draft_id || "unknown"}`,
+      `Resume key (draft_session_id): ${d.draft_session_id || "unknown"}`,
       d.is_new === false ? `(updated the existing draft for this session)` : null,
       ``,
       d.note ||
-        "Saved as draft — publish when ready (identity + payout setup happen at publish, not now).",
+        "Saved as draft. Publish when ready (identity + payout setup happen at publish, not now).",
     ]
       .filter((l) => l !== null)
       .join("\n"),
@@ -2828,7 +2827,7 @@ function renderNextAction(na: any, status?: string): string {
   }
   const actor = na.actor === "renter" ? "the renter" : na.actor === "owner" ? "the owner" : "nobody";
   return [
-    `Next step (${na.code || "—"}, action by ${actor}): ${na.description || "—"}`,
+    `Next step (${na.code || "unknown"}, action by ${actor}): ${na.description || "unknown"}`,
     na.url ? `Do it here: ${na.url}` : null,
   ]
     .filter(Boolean)
@@ -2846,23 +2845,23 @@ async function getBooking(args: Record<string, unknown>) {
   const d = (res.data || {}) as any;
   const money = d.money || {};
   const isMetered = d.billing_mode === "METERED";
-  const usd = (c: unknown) => (typeof c === "number" ? `$${(c / 100).toFixed(2)}` : "—");
+  const usd = (c: unknown) => (typeof c === "number" ? `$${(c / 100).toFixed(2)}` : "unknown");
   const depositLine =
     money.deposit_display_cents == null
       ? "Deposit: the owner has not stated a figure (nothing is held either way)"
       : money.deposit_display_cents === 0
         ? "Deposit: none required by this owner"
-        : `Deposit (displayed, never held — charged only if the renter expressly accepts a damage claim): ${usd(money.deposit_display_cents)}`;
+        : `Deposit (displayed, never held, and charged only if the renter expressly accepts a damage claim): ${usd(money.deposit_display_cents)}`;
   return toolText(
     [
-      `Booking ${d.confirmation_code || d.booking_id || "—"} (${d.role === "owner" ? "you own the listing" : "you are the renter"}):`,
+      `Booking ${d.confirmation_code || d.booking_id || "unknown"} (${d.role === "owner" ? "you own the listing" : "you are the renter"}):`,
       ``,
-      `Status: ${d.status || "—"}`,
+      `Status: ${d.status || "unknown"}`,
       `Payment: ${d.payment?.settled ? (isMetered ? "budget hold authorized" : "paid") : /payment is processing/i.test(d.next_action?.description || "") ? "processing (do not pay again)" : "not yet paid"}`,
-      `Equipment: ${d.equipment?.title || "—"}${d.equipment?.remote_access_enabled ? " (remote access" + (d.equipment?.require_mfa ? ", MFA required — start sessions from the web/mobile app" : "") + ")" : ""}`,
-      `Window: ${d.start_date || "—"} → ${d.end_date || "—"} (${d.duration_type || "—"})`,
+      `Equipment: ${d.equipment?.title || "unknown"}${d.equipment?.remote_access_enabled ? " (remote access" + (d.equipment?.require_mfa ? ", MFA required: start sessions from the web/mobile app" : "") + ")" : ""}`,
+      `Window: ${d.start_date || "unknown"} → ${d.end_date || "unknown"} (${d.duration_type || "unknown"})`,
       isMetered
-        ? `Billing: METERED — budget ${usd(money.meter_budget_cents)}, billed so far ${usd(money.meter_billed_cents)}`
+        ? `Billing: METERED, budget ${usd(money.meter_budget_cents)}, billed so far ${usd(money.meter_billed_cents)}`
         : `Total: ${usd(money.total_amount_cents)} (rental ${usd(money.rental_total_cents)} + service fee ${usd(money.service_fee_cents)})`,
       isMetered ? null : depositLine,
       d.session ? `Active session: ${d.session.active_session_id || "none"}${d.session.status ? ` (${d.session.status})` : ""}` : null,
@@ -2885,7 +2884,7 @@ async function getBooking(args: Record<string, unknown>) {
 function connectionLine(d: any): string | null {
   const c = d?.connection;
   if (c && typeof c === "object") {
-    if (c.type === "proxy" && c.url) return `Connect via RIGShare's session proxy: ${c.url} — ${c.note || "POST with Authorization: Bearer <access_token>."}`;
+    if (c.type === "proxy" && c.url) return `Connect via RIGShare's session proxy: ${c.url}. ${c.note || "POST with Authorization: Bearer <access_token>."}`;
     if (c.type === "browser" && c.url) return `Workspace (opens in a browser signed in to RIGShare): ${c.url}`;
     if (c.type === "unavailable") return `Connection: ${c.note || "not available for this session."}`;
     if (c.type === "direct" && c.url) return `Connection URL (owner's endpoint): ${c.url}`;
@@ -2904,20 +2903,20 @@ async function getSession(args: Record<string, unknown>) {
   const d = (res.data || {}) as any;
   const u = d.usage || {};
   const m = d.latest_metrics;
-  const pct = (v: unknown) => (typeof v === "number" ? `${Math.round(v)}%` : "—");
+  const pct = (v: unknown) => (typeof v === "number" ? `${Math.round(v)}%` : "unknown");
   return toolText(
     [
-      `Remote session ${d.session_id || "—"} on booking ${d.booking_id || "—"}:`,
+      `Remote session ${d.session_id || "unknown"} on booking ${d.booking_id || "unknown"}:`,
       ``,
-      `Status: ${d.status || "—"} · health: ${d.health_status || "unknown"}${d.pause_reason ? ` · paused: ${d.pause_reason}` : ""}${d.error_message ? ` · error: ${d.error_message}` : ""}`,
-      `Access: ${d.access_type || "—"}`,
+      `Status: ${d.status || "unknown"} · health: ${d.health_status || "unknown"}${d.pause_reason ? ` · paused: ${d.pause_reason}` : ""}${d.error_message ? ` · error: ${d.error_message}` : ""}`,
+      `Access: ${d.access_type || "unknown"}`,
       connectionLine(d),
-      `Started: ${d.started_at || "—"}${d.ended_at ? ` · ended: ${d.ended_at}` : ""}${d.last_heartbeat ? ` · last heartbeat: ${d.last_heartbeat}` : ""}`,
-      `Usage: ${u.total_compute_hours ?? "—"} compute hours${u.billed_minutes != null ? ` (${u.billed_minutes} billed min)` : ""} · cost so far $${((u.total_cost_cents || 0) / 100).toFixed(2)}${u.interruption_count ? ` · ${u.interruption_count} interruption(s), ${u.interrupted_seconds}s not billed` : ""}`,
+      `Started: ${d.started_at || "unknown"}${d.ended_at ? ` · ended: ${d.ended_at}` : ""}${d.last_heartbeat ? ` · last heartbeat: ${d.last_heartbeat}` : ""}`,
+      `Usage: ${u.total_compute_hours ?? "unknown"} compute hours${u.billed_minutes != null ? ` (${u.billed_minutes} billed min)` : ""} · cost so far $${((u.total_cost_cents || 0) / 100).toFixed(2)}${u.interruption_count ? ` · ${u.interruption_count} interruption(s), ${u.interrupted_seconds}s not billed` : ""}`,
       d.meter ? `Metered budget: $${((d.meter.budget_cents || 0) / 100).toFixed(2)} authorized, $${((d.meter.billed_cents || 0) / 100).toFixed(2)} billed` : null,
       `Resources: ${d.resources?.gpu_allocation || "no GPU allocation recorded"}${d.resources?.cpu_cores ? ` · ${d.resources.cpu_cores} vCPU` : ""}${d.resources?.ram_gb ? ` · ${d.resources.ram_gb} GB RAM` : ""}${d.resources?.storage_gb ? ` · ${d.resources.storage_gb} GB storage` : ""}`,
       m
-        ? `Latest telemetry (${m.at || "—"}): CPU ${pct(m.cpu_percent)} · GPU ${pct(m.gpu_percent)} · memory ${pct(m.memory_percent)} · disk ${pct(m.disk_percent)}${m.latency_ms != null ? ` · latency ${m.latency_ms} ms` : ""}${m.gpu_temp_c != null ? ` · GPU ${Math.round(m.gpu_temp_c)}°C` : ""}${m.gpu_mem_used_mb != null && m.gpu_mem_total_mb ? ` · VRAM ${m.gpu_mem_used_mb}/${m.gpu_mem_total_mb} MB` : ""}${m.battery_pct != null ? ` · battery ${Math.round(m.battery_pct)}%` : ""}`
+        ? `Latest telemetry (${m.at || "unknown"}): CPU ${pct(m.cpu_percent)} · GPU ${pct(m.gpu_percent)} · memory ${pct(m.memory_percent)} · disk ${pct(m.disk_percent)}${m.latency_ms != null ? ` · latency ${m.latency_ms} ms` : ""}${m.gpu_temp_c != null ? ` · GPU ${Math.round(m.gpu_temp_c)}°C` : ""}${m.gpu_mem_used_mb != null && m.gpu_mem_total_mb ? ` · VRAM ${m.gpu_mem_used_mb}/${m.gpu_mem_total_mb} MB` : ""}${m.battery_pct != null ? ` · battery ${Math.round(m.battery_pct)}%` : ""}`
         : `Latest telemetry: none reported yet.`,
       ``,
       d.status === "active"
@@ -2950,15 +2949,15 @@ async function publishListing(args: Record<string, unknown>) {
         : code === "STRIPE_CONNECT_REQUIRED"
           ? "The owner must finish payout setup (Stripe Connect) in the RIGShare app, then retry."
           : code === "TIER_LIMIT"
-            ? "The owner's plan has reached its listing limit — upgrade the plan or pause another listing."
+            ? "The owner's plan has reached its listing limit. Upgrade the plan or pause another listing."
             : code === "REPLACEMENT_VALUE_REQUIRED"
-              ? "A physical (non-remote) listing needs a replacement value to publish — re-save the draft with replacement_value_usd and retry."
+              ? "A physical (non-remote) listing needs a replacement value to publish: re-save the draft with replacement_value_usd and retry."
             : code === "DEPOSIT_ABOVE_LIMIT"
-              ? "The deposit figure to display is above what the replacement value allows (10% of it, $25–$1,000) or the replacement value is missing — re-save the draft with a lower deposit_display_usd and/or a replacement_value_usd, then retry."
+              ? "The deposit figure to display is above what the replacement value allows (10% of it, $25–$1,000) or the replacement value is missing: re-save the draft with a lower deposit_display_usd and/or a replacement_value_usd, then retry."
             : code === "INCOMPLETE"
               ? "The draft is missing basics (title/description/category), rates, location (a physical INSTANT listing also needs a street address, added in the app), or at least one camera photo added in the app."
               : code === "MODERATION_FLAGGED"
-                ? "The title/description/photos were flagged by moderation — edit them and retry."
+                ? "The title/description/photos were flagged by moderation: edit them and retry."
                 : code === "PHOTO_REVIEW_UNAVAILABLE"
                   ? "The photos could not be reviewed. This is usually a temporary outage: retry in a few minutes. If it keeps failing, the owner should replace the photos in the RIGShare app or contact support@rigshare.app."
                   : "";
@@ -3013,7 +3012,7 @@ async function fetchJson(url: string): Promise<FetchResult> {
         retryable,
         error: serverError
           ? `RIGShare API error [${code}] (HTTP ${res.status}${retryable ? ", retryable" : ""}): ${serverError}`
-          : `RIGShare API returned HTTP ${res.status} [${code}]${retryable ? " — retryable, try again shortly" : ""}.`,
+          : `RIGShare API returned HTTP ${res.status} [${code}]${retryable ? " (retryable, try again shortly)" : ""}.`,
       };
     }
     const data = await res.json();
@@ -3028,7 +3027,7 @@ async function fetchJson(url: string): Promise<FetchResult> {
       code: "network_error",
       retryable: true,
       error:
-        "Network error contacting RIGShare API [network_error] — retryable, try again shortly.",
+        "Network error contacting RIGShare API [network_error] (retryable, try again shortly).",
     };
   }
 }
@@ -3142,7 +3141,7 @@ function renderEconomics(policy: NormalizedPolicy): string[] {
           ? " (RIGShare also runs a reduced verified-student rate; whether it is currently being charged is published live at /api/public/v1/policy \"student_rate_active\", which this copy could not reach)"
           : ""
     }; doesn't reduce your payout`,
-    `- RIGShare holds NO security deposit. Physical listings may DISPLAY an owner-stated deposit figure (deposit_display_cents — null means none stated, 0 means the owner requires none); it is never held or charged unless the renter expressly accepts a damage claim, and an accepted claim is never charged above it. METERED per-minute Tech sessions display no figure; the renter authorizes a usage budget instead`,
+    `- RIGShare holds NO security deposit. Physical listings may DISPLAY an owner-stated deposit figure (deposit_display_cents: null means none stated, 0 means the owner requires none); it is never held or charged unless the renter expressly accepts a damage claim, and an accepted claim is never charged above it. METERED per-minute Tech sessions display no figure; the renter authorizes a usage budget instead`,
     "- Payouts via Stripe Connect: your share is released to your Stripe account 48 hours after the rental is complete; the bank deposit then follows Stripe's payout schedule",
     "- Buy-now-pay-later at checkout where offered (Klarna, Affirm, Zip)",
     "",

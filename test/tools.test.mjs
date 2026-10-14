@@ -193,8 +193,8 @@ const quoteRes = await client.callTool({
   },
 });
 const quoteTxt = textOf(quoteRes);
-check("quote: 'Booking quote (estimate — nothing is charged):'",
-  quoteTxt.includes("Booking quote (estimate — nothing is charged):"));
+check("quote: 'Booking quote (estimate only, nothing is charged):'",
+  quoteTxt.includes("Booking quote (estimate only, nothing is charged):"));
 check("quote: 'Rental (2 days): $120.00'", quoteTxt.includes("Rental (2 days): $120.00"));
 check("quote: 'Renter service fee: $8.40'", quoteTxt.includes("Renter service fee: $8.40"));
 // RIGShare holds no deposit, so the grand total is the charged amount and the

@@ -878,7 +878,7 @@
             "type": "string"
           },
           "idempotency_key": {
-            "description": "Optional, recommended: a new value for each booking you intend, the same value when retrying it (printable ASCII, up to 100 characters — a UUID works). A request that matches a pending, approved or confirmed booking you created in the last 5 minutes (same equipment, same dates — for a same-day remote session, the same UTC day — same duration type, and the same price, usage budget, compute environment, pickup/delivery choice and coverage choice) is never booked or charged a second time: with the same key, or with no key, you get that booking back, marked idempotent, with its payment state and next action; with a different key it is normally refused with HTTP 409 IDENTICAL_BOOKING_RECENT, which names the existing booking — confirm with the user before booking the same thing again (if the original request's key isn't on record, you get the booking back instead). Reusing a key for a request that doesn't match its booking is refused with HTTP 422 IDEMPOTENCY_KEY_REUSED: check that booking before booking again. For a per-minute (metered) listing, two requests with the same usage budget match whatever their length; a listing that serves one renter at a time has no room for a second same-day session anyway.",
+            "description": "Optional, recommended: a new value for each booking you intend, the same value when retrying it (printable ASCII, up to 100 characters; a UUID works). A request that matches a pending, approved or confirmed booking you created in the last 5 minutes (same equipment; same dates, or for a same-day remote session the same UTC day; same duration type; and the same price, usage budget, compute environment, pickup/delivery choice and coverage choice) is never booked or charged a second time: with the same key, or with no key, you get that booking back, marked idempotent, with its payment state and next action; with a different key it is normally refused with HTTP 409 IDENTICAL_BOOKING_RECENT, which names the existing booking. Confirm with the user before booking the same thing again (if the original request's key isn't on record, you get the booking back instead). Reusing a key for a request that doesn't match its booking is refused with HTTP 422 IDEMPOTENCY_KEY_REUSED: check that booking before booking again. For a per-minute (metered) listing, two requests with the same usage budget match whatever their length; a listing that serves one renter at a time has no room for a second same-day session anyway.",
             "maxLength": 100,
             "pattern": "^[\\x20-\\x7E]*$",
             "type": "string"
@@ -1103,7 +1103,7 @@
                 "type": "string"
               },
               "require_mfa": {
-                "description": "Require renters to pass TOTP multi-factor authentication to start a session (default true). Agents cannot start sessions on such listings.",
+                "description": "Require renters to enter a code from an authenticator app (multi-factor authentication, MFA) before a session starts. On by default for remote-access listings; set false to turn it off. Agents cannot start sessions on such listings.",
                 "type": "boolean"
               },
               "security_ack": {
@@ -1677,7 +1677,7 @@
                 "type": "string"
               },
               "require_mfa": {
-                "description": "Require renters to pass TOTP multi-factor authentication to start a session (default true). Agents cannot start sessions on such listings.",
+                "description": "Require renters to enter a code from an authenticator app (multi-factor authentication, MFA) before a session starts. On by default for remote-access listings; set false to turn it off. Agents cannot start sessions on such listings.",
                 "type": "boolean"
               },
               "specs": {
