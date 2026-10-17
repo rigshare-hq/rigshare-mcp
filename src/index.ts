@@ -429,7 +429,7 @@ const BOOKING_PARAM_DOCS = {
     "ISO 8601 date or date-time. A date alone is read as UTC midnight (the previous afternoon or evening in US time zones), so for HOURLY and FOUR_HOURS send a date-time with a UTC offset in the equipment's local time, e.g. 2026-09-15T08:00:00-05:00.",
   end_date: "ISO 8601 date or date-time, after start_date. Same format rules as start_date.",
   duration_type:
-    "Pricing unit. HOURLY bills every started hour between start and end; FOUR_HOURS bills 4-hour blocks and must start by 4:00 PM equipment-local time; DAILY bills per day; WEEKLY per started 7 days; MONTHLY per started 30 days.",
+    "Pricing unit. HOURLY bills every started hour between start and end and is accepted only for remote-access listings (a physical listing refuses it with code hourly_requires_remote); FOUR_HOURS bills 4-hour blocks and must start by 4:00 PM equipment-local time; DAILY bills per day; WEEKLY per started 7 days; MONTHLY per started 30 days.",
   pickup_type:
     "SELF_PICKUP, or OWNER_DELIVERY (adds the owner's delivery fee). rigshare_create_booking refuses OWNER_DELIVERY on a listing that does not offer delivery and on any remote-access listing; rigshare_quote_booking does not check this, so a quote can succeed for a booking that will be refused. Omitted = REMOTE_ACCESS, which is treated as self pickup; whether a booking is remote comes from the listing itself.",
   budget_usd:
@@ -1800,7 +1800,7 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
   sections.push(
     `# List your${equipmentType ? ` ${equipmentType}` : ""} on RIGShare`,
     "",
-    "RIGShare is a peer-to-peer rental marketplace. Owners list idle equipment; renters book by the hour, day, week, or month. You keep the bulk of every rental. RIGShare handles payments (Stripe) and identity verification (Stripe Identity). RIGShare does NOT hold security deposits: you can state a deposit figure that is displayed on your listing, and RIGShare charges a renter for damage only if the renter expressly accepts a damage claim, never above that figure. You control pricing, availability, and who can rent.",
+    "RIGShare is a peer-to-peer rental marketplace. Owners list idle equipment; renters book by the day, week, or month (physical equipment also by the 4-hour block where you set a 4-hour rate), and remote-access listings can also be rented by the hour or billed per minute. You keep the bulk of every rental. RIGShare handles payments (Stripe) and identity verification (Stripe Identity). RIGShare does NOT hold security deposits: you can state a deposit figure that is displayed on your listing, and RIGShare charges a renter for damage only if the renter expressly accepts a damage claim, never above that figure. You control pricing, availability, and who can rent.",
     "",
     // Rendered from the live /policy copy (falls back to bundled values).
     ...renderEconomics(policy),

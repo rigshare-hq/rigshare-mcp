@@ -239,7 +239,7 @@ equipment's local time; the session must start by 4:00 PM local. A
 date-only start is read as UTC midnight: it is usually refused, but in
 Pacific time in winter, Alaska and Hawaii it books a four-hour block on
 the previous afternoon. `HOURLY` bookings are billed for every started
-hour between the two instants, so send real date-times there as well.
+hour between the two instants, so send real date-times there as well. `HOURLY` is accepted only on remote-access listings; a physical listing refuses it with code `hourly_requires_remote`.
 
 The full authenticated-API surface is documented at
 https://www.rigshare.app/openapi.json.

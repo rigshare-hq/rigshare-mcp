@@ -640,7 +640,7 @@
             "type": "string"
           },
           "duration_type": {
-            "description": "Pricing unit. HOURLY bills every started hour between start and end; FOUR_HOURS bills 4-hour blocks and must start by 4:00 PM equipment-local time; DAILY bills per day; WEEKLY per started 7 days; MONTHLY per started 30 days.",
+            "description": "Pricing unit. HOURLY bills every started hour between start and end and is accepted only for remote-access listings (a physical listing refuses it with code hourly_requires_remote); FOUR_HOURS bills 4-hour blocks and must start by 4:00 PM equipment-local time; DAILY bills per day; WEEKLY per started 7 days; MONTHLY per started 30 days.",
             "enum": [
               "HOURLY",
               "FOUR_HOURS",
@@ -858,7 +858,7 @@
             "type": "string"
           },
           "duration_type": {
-            "description": "Pricing unit. HOURLY bills every started hour between start and end; FOUR_HOURS bills 4-hour blocks and must start by 4:00 PM equipment-local time; DAILY bills per day; WEEKLY per started 7 days; MONTHLY per started 30 days.",
+            "description": "Pricing unit. HOURLY bills every started hour between start and end and is accepted only for remote-access listings (a physical listing refuses it with code hourly_requires_remote); FOUR_HOURS bills 4-hour blocks and must start by 4:00 PM equipment-local time; DAILY bills per day; WEEKLY per started 7 days; MONTHLY per started 30 days.",
             "enum": [
               "HOURLY",
               "FOUR_HOURS",
