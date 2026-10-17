@@ -46,6 +46,11 @@ their own; those entries say which published release first included them.
   as a code from an authenticator app instead of naming TOTP, and says it is on
   by default for remote-access listings and can be turned off. No tool,
   parameter, resource or prompt was added, removed or renamed.
+- The `rigshare_create_booking` description no longer calls the Liability
+  Acknowledgment Waiver a "damage waiver". It now says the renter accepts
+  personal responsibility for damage under it, which is what the waiver does.
+  Wording only; no tool, parameter, resource or prompt was added, removed or
+  renamed.
 
 ## [2.2.0] — 2026-10-02
 
