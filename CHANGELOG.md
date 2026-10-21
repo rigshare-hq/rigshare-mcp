@@ -51,6 +51,10 @@ their own; those entries say which published release first included them.
   personal responsibility for damage under it, which is what the waiver does.
   Wording only; no tool, parameter, resource or prompt was added, removed or
   renamed.
+- The container image (`Dockerfile`, used by hosted MCP platforms) now builds
+  on Node 24 instead of Node 20, which is past end of life and no longer
+  receives security fixes. Nothing changes for `npx rigshare-mcp` on your own
+  machine, and the package's minimum supported Node version is unchanged.
 
 ## [2.2.0] — 2026-10-02
 

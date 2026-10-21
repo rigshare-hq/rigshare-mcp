@@ -10,7 +10,10 @@
 # locally, via an HTTPS endpoint the platform wraps around the stdio
 # protocol.
 
-FROM node:20-alpine
+# Node 24 is a supported LTS line (security fixes until 2028-04-30).
+# Deliberately no patch pin, so a rebuild picks up the latest 24.x security
+# fixes. Do not go back to Node 20 (end of life).
+FROM node:24-alpine
 
 # Install the published rigshare-mcp package globally from the npm registry.
 # Tracks @latest on purpose, so a fresh hosted build always runs the current
