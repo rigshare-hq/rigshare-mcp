@@ -494,6 +494,30 @@ console.log("\n[e4] extend / sync / booking / listing rendering:");
   });
   check("extend: a 500 makes no claim about the hold", !textOf(ext500).includes("No hold was placed"));
 
+  mockFetch({ error: "Spend limits could not be read. Nothing was booked or charged.", code: "limits_unavailable" }, { ok: false, status: 503 });
+  const ext503 = await client.callTool({
+    name: "rigshare_extend_session",
+    arguments: { booking_id: BID, additional_minutes: 15 },
+  });
+  check("extend: shows the server code and says no hold on a 503",
+    textOf(ext503).includes("(code: limits_unavailable)") && textOf(ext503).includes("No hold was placed"));
+
+  mockFetch({ error: "Payments are paused.", code: "payments_paused" }, { ok: false, status: 409 });
+  const end409 = await client.callTool({
+    name: "rigshare_end_session",
+    arguments: { booking_id: BID },
+  });
+  check("end: shows the server code on a payments pause",
+    end409.isError === true && textOf(end409).includes("(code: payments_paused)"));
+
+  mockFetch({ error: "x", code: "rate_not_offered" }, { ok: false, status: 400 });
+  const quoteErr = await client.callTool({
+    name: "rigshare_quote_booking",
+    arguments: { equipment_id: BID, start_date: "2030-01-01", end_date: "2030-01-03", duration_type: "DAILY" },
+  });
+  check("quote: shows the server code on a refusal",
+    quoteErr.isError === true && textOf(quoteErr).includes("(code: rate_not_offered)"));
+
   // sync_availability: offset times go out as UTC; bad blocks never reach the API.
   let captured = null;
   let calls = 0;
@@ -554,6 +578,27 @@ console.log("\n[e4] extend / sync / booking / listing rendering:");
   }));
   check("create_booking: an APPROVED (instant-book) booking is not told to wait for the owner",
     instant.includes("no owner approval is needed") && !instant.includes("after the owner approves"));
+
+  // A retry while the first request is still in flight: the server's code is shown.
+  mockFetch({ error: "This call booked nothing new.", code: "request_in_progress" }, { ok: false, status: 409 });
+  const inFlight = await client.callTool({
+    name: "rigshare_create_booking",
+    arguments: {
+      equipment_id: "55555555-5555-4555-8555-555555555555", start_date: "2026-10-01T08:00:00-05:00",
+      end_date: "2026-10-02T08:00:00-05:00", duration_type: "DAILY", coverage_path: "BYOCOI",
+    },
+  });
+  check("create_booking: the server's refusal code reaches the agent",
+    inFlight.isError === true && textOf(inFlight).includes("(code: request_in_progress)"));
+  mockFetch({ error: "Something failed." }, { ok: false, status: 400 });
+  const noCode = textOf(await client.callTool({
+    name: "rigshare_create_booking",
+    arguments: {
+      equipment_id: "55555555-5555-4555-8555-555555555555", start_date: "2026-10-01T08:00:00-05:00",
+      end_date: "2026-10-02T08:00:00-05:00", duration_type: "DAILY", coverage_path: "BYOCOI",
+    },
+  }));
+  check("create_booking: an error with no code is unchanged", noCode === "Error: Something failed.");
 
   // create_booking replay while the original's auto-pay is still running: never "pay now".
   mockFetch({

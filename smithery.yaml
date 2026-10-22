@@ -19,7 +19,8 @@ startCommand:
       tools (booking, listing, availability and remote sessions), each
       limited to the scopes granted to the key. Create a key at
       https://www.rigshare.app/enterprise (API keys need a Pro or
-      Enterprise plan).
+      Enterprise plan; while RIGShare payments are paused a new plan cannot be
+      bought).
     properties:
       apiKey:
         type: string

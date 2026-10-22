@@ -17,7 +17,7 @@
       },
       "environmentVariables": [
         {
-          "description": "RIGShare API key (Bearer format). Required for the authenticated tools (booking, listing, session, quote, availability, cancel, extend, usage, and draft management). Without it, the public read-only tools (search, get equipment, list categories, owner onboarding) still work. Create a key at https://www.rigshare.app/enterprise (API keys need a Pro or Enterprise plan) or contact support@rigshare.app.",
+          "description": "RIGShare API key (Bearer format). Required for the authenticated tools (booking, listing, session, quote, availability, cancel, extend, usage, and draft management). Without it, the public read-only tools (search, get equipment, list categories, owner onboarding) still work. Create a key at https://www.rigshare.app/enterprise (API keys need a Pro or Enterprise plan; while RIGShare payments are paused a new plan cannot be bought) or contact support@rigshare.app.",
           "isRequired": false,
           "format": "string",
           "isSecret": true,

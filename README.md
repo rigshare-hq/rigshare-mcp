@@ -26,10 +26,10 @@ owner's behalf, and never steps up to MFA.
 | Tool | Required scope | What it does |
 |---|---|---|
 | `rigshare_quote_booking` | `bookings:read` | Dry-run price for exact dates (nothing is charged). Refuses a 4-hour start past 4:00 PM local up front |
-| `rigshare_create_booking` | `bookings:write` | Creates the booking (both divisions). Server computes every price; returns confirmation + `next_action` (who acts next, and the URL) |
+| `rigshare_create_booking` | `bookings:write` | Creates the booking (both divisions). Server computes every price; returns confirmation + `next_action` (who acts next, and the URL). While RIGShare payments are paused, booking is refused and nothing is booked or charged; tell the renter and do not retry in a loop |
 | `rigshare_get_booking` | `bookings:read` | Poll one booking: status, payment settled?, active session, `next_action` (who acts next, and the URL). Request-to-book: owner approves → renter pays at the URL → confirmed. Instant-book: the renter pays at the URL right away |
 | `rigshare_list_my_bookings` | `bookings:read` | The authed user's bookings |
-| `rigshare_cancel_booking` | `bookings:write` | Cancel; refund computed server-side per the published policy |
+| `rigshare_cancel_booking` | `bookings:write` | Cancel; refund computed server-side per the published policy. While RIGShare payments are paused, cancelling a metered booking that has billable usage is refused (see the tool description) |
 
 **Listing (owner side):**
 
@@ -49,7 +49,7 @@ owner's behalf, and never steps up to MFA.
 | `rigshare_get_session` | `sessions:read` | Status, health, usage, metered budget vs billed, latest telemetry |
 | `rigshare_get_session_usage` | `sessions:read` | Live budget snapshot for a METERED booking |
 | `rigshare_extend_session` | `sessions:write` | Raise the authorized budget (money path: confirm with the renter). Needs auto-pay enabled on the key and stays within the key's spend caps |
-| `rigshare_end_session` | `sessions:write` | Stop the per-minute meter; settles exact usage |
+| `rigshare_end_session` | `sessions:write` | Stop the per-minute meter and settle exact usage. While RIGShare payments are paused, minutes used are not charged yet and the call answers 409 `payments_paused` (a session with nothing to bill still settles at $0) |
 | `rigshare_list_my_sessions` | `sessions:read` | Active + historical sessions |
 
 Read-only tools hit the public API (100 req/min/IP). Authenticated
@@ -59,8 +59,8 @@ auth and respect the API key's scopes and, where set, its spend caps.
 ## Use cases
 
 **For ML / AI engineers:**
-- "Find me the cheapest H100 available this weekend"
-- "Are there any A100 80GB setups with SSH access right now?"
+- "Find me the cheapest H100 on RIGShare"
+- "Are there any A100 80GB setups with SSH access?"
 - "What's the going rate for inference GPUs on RIGShare?"
 
 **For robotics researchers:**
@@ -69,7 +69,7 @@ auth and respect the API key's scopes and, where set, its spend caps.
 
 **For construction contractors:**
 - "Find an excavator under 10 tons in Texas"
-- "What scissor lifts are available this week in Salinas?"
+- "What scissor lifts are listed in Salinas?"
 
 **For AI procurement agents:**
 - "Give me a list of all rentable 3D printers in California, sorted by price"
@@ -168,7 +168,7 @@ Then point your MCP client at the local build by changing the config:
 
 ## Environment variables
 
-- `RIGSHARE_API_KEY`: **Optional**. Enables the 16 authenticated tools. Without it, those tools return a descriptive error and the 4 read-only tools still work. Create a key at https://www.rigshare.app/enterprise (API keys need a Pro or Enterprise plan) or email support@rigshare.app.
+- `RIGSHARE_API_KEY`: **Optional**. Enables the 16 authenticated tools. Without it, those tools return a descriptive error and the 4 read-only tools still work. Create a key at https://www.rigshare.app/enterprise (API keys need a Pro or Enterprise plan; while RIGShare payments are paused a new plan cannot be bought) or email support@rigshare.app.
 - `RIGSHARE_BASE`: override the RIGShare host that every API base below derives from. Defaults to `https://www.rigshare.app`.
 - `RIGSHARE_API_BASE`: override the public API base URL. Defaults to `https://www.rigshare.app/api/public/v1`.
 - `RIGSHARE_AGENT_API_BASE`: override the authenticated agent API base URL. Defaults to `https://www.rigshare.app/api/v1/agent`.
@@ -191,7 +191,7 @@ Then point your MCP client at the local build by changing the config:
 ```
 
 The scope each authenticated tool requires is listed in the tables under
-[What it does](#what-it-does). Keys can be scoped narrowly (read-only) or broadly (read+write+booking). A key can also carry an optional per-transaction spend cap and an optional daily spend cap (there is no monthly cap). A new key has neither cap and has auto-pay off; neither is set from the key page, so contact support@rigshare.app about them. Create and revoke keys at https://www.rigshare.app/enterprise.
+[What it does](#what-it-does). Keys can be scoped narrowly (read-only) or broadly (read+write+booking). A key can also carry an optional per-booking spend cap and an optional cap over a rolling 24 hours (there is no monthly cap). The 24 hour total counts bookings and session extensions requested in the last 24 hours, before sales tax. Requests that were later declined, cancelled or expired keep counting until 24 hours pass. Refusals come back with code `spend_limit_per_booking` or `spend_limit_24h` and nothing is booked or authorized. A booking retry sent while the first booking request is still being processed gets 409 `request_in_progress` (session extensions have no such check, so check the session's budget before extending again), and if the limits cannot be read the answer is 503 `limits_unavailable` and nothing is booked. A new key has neither cap and has auto-pay off; neither is set from the key page, so contact support@rigshare.app about them. Create and revoke keys at https://www.rigshare.app/enterprise.
 
 ## How the data flows
 
@@ -215,11 +215,15 @@ The authenticated tools require a RIGShare API key set via the
 descriptive error and only the four public read-only tools work.
 
 Create an API key at https://www.rigshare.app/enterprise (API keys need
-a Pro or Enterprise plan) or email support@rigshare.app. Keys are scoped
+a Pro or Enterprise plan; while RIGShare payments are paused a new plan cannot
+be bought) or email support@rigshare.app. Keys are scoped
 (`equipment:read`, `equipment:write`, `bookings:read`, `bookings:write`,
 `sessions:read`, `sessions:write`) and can carry an optional
-per-transaction spend cap and an optional daily spend cap. A booking is
-checked against them before sales tax is added. A new key has neither.
+per-booking spend cap and an optional spend cap over a rolling 24 hours. A
+booking or a session extension is checked against them before sales tax is
+added (each one is checked on its own against the per-booking cap), and a per-minute booking counts its full budget. Requests that were
+later declined, cancelled or expired keep counting toward the 24 hour cap
+until 24 hours pass. A new key has neither.
 
 **The human stays in the loop for money.** A booking created by an
 agent is paid by the renter at the booking URL: right away on an
@@ -229,7 +233,7 @@ instant-book booking is paid with the renter's saved card as it is
 created (a per-minute listing's budget is authorized as a card hold).
 Auto-pay is off on a new key, and extending a session's budget needs
 it. A listing is published only after the owner completes identity
-verification and payout setup in the app; a remote session on
+verification and payout setup in the app (while RIGShare payments are paused payout setup cannot be started or continued); a remote session on
 MFA-protected equipment must be started from the web or mobile app.
 `rigshare_get_booking` always tells the agent who has to act next.
 

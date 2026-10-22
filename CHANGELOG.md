@@ -15,8 +15,11 @@ their own; those entries say which published release first included them.
 
 ### Changed
 - The bundled fallback copy of the policy (what `rigshare://pricing` returns
-  when the live endpoint is unreachable) now matches the live
-  `/api/public/v1/policy` payload again. A damage claim the renter never
+  when the live endpoint is unreachable) now carries the same damage-claim,
+  claim-settlement and referral wording as the live `/api/public/v1/policy`
+  payload. The live payload reports on-platform claim settlement as unavailable
+  while payments are paused; the bundled copy cannot know that, so it now says
+  `null` (unknown) instead of promising it. A damage claim the renter never
   answered goes to direct resolution whatever the AI plausibility check
   concluded, because only an explicit renter acceptance is ever charged; the
   plausibility result is recorded internally and is not shared with either
@@ -51,10 +54,42 @@ their own; those entries say which published release first included them.
   personal responsibility for damage under it, which is what the waiver does.
   Wording only; no tool, parameter, resource or prompt was added, removed or
   renamed.
+- The `duration_type` parameter of `rigshare_quote_booking` and
+  `rigshare_create_booking` (and the README) now says which rental periods a
+  listing accepts. `HOURLY` is accepted only on remote-access listings that set
+  an hourly rate (a physical listing is refused with code
+  `hourly_requires_remote`), `FOUR_HOURS` needs the listing's own 4-hour rate,
+  and a period the owner has not priced is refused with code `rate_not_offered`.
+  No tool, parameter, resource or prompt was added, removed or renamed.
+- The owner guide returned by `rigshare_get_owner_onboarding` now lists the
+  rental periods owners can offer (day, week, month, the 4-hour block on
+  physical equipment where the owner sets a 4-hour rate, and hourly or
+  per-minute on remote-access listings), and says an owner may state a deposit
+  figure, which RIGShare never holds, and that RIGShare charges a renter for
+  damage only if the renter expressly accepts a damage claim, never above that
+  figure. Wording only; no tool, parameter, resource or prompt was added,
+  removed or renamed.
 - The container image (`Dockerfile`, used by hosted MCP platforms) now builds
   on Node 24 instead of Node 20, which is past end of life and no longer
   receives security fixes. Nothing changes for `npx rigshare-mcp` on your own
   machine, and the package's minimum supported Node version is unchanged.
+- Agent facing text now matches how RIGShare works today. Spend limits are
+  described as a per-booking limit and a rolling 24 hour limit (not a calendar
+  day), counted before sales tax, including session extensions and requests that
+  were later declined, cancelled or expired; the refusal codes
+  `spend_limit_per_booking`, `spend_limit_24h`, `request_in_progress` (409) and
+  `limits_unavailable` (503) are named, and the booking, quote, extend-session
+  and end-session tools now show the server's code in their error text. The
+  tools also say what happens while RIGShare payments are paused (bookings
+  refused, session charges and owner payouts wait, payout setup cannot be
+  started or continued, and new plans cannot be bought), the booking total lists
+  sales tax, the availability tool says it does not show renter bookings, the
+  rating sort description says unreviewed listings come first, the search
+  example no longer implies a radius search, the publish hints cover the draft
+  basics and `owner_agreement_required`, the listing-limit hint says paused and
+  draft listings count toward the limit (deleting one, not pausing it, frees a
+  slot), and the bundled referral wording matches the live policy. No tool,
+  parameter, resource or prompt was added, removed or renamed.
 
 ## [2.2.0] — 2026-10-02
 

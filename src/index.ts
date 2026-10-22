@@ -186,7 +186,10 @@ const BUNDLED_POLICY = {
     direct_resolution: {
       description:
         "If the renter does not respond within the response window, or the approved amount cannot be collected (for example the renter's accepted charge is declined), RIGShare shares contact info and the evidence between owner and renter, opens a message thread, and stops charging. A claim the renter disputes is reviewed first and reaches this step only if the review does not end in the renter's favor or no decision is made in time. A silent claim goes this way whatever the AI plausibility check concluded, because only an explicit renter acceptance is ever charged. RIGShare facilitates the transaction and does not adjudicate the claim.",
-      on_platform_settlement_available: true,
+      // `null` = unknown. The live endpoint reports false while payments are paused;
+      // this fallback cannot know, so it must not promise settlement. See
+      // student_rate_active above for the same rule.
+      on_platform_settlement_available: null as boolean | null,
     },
     renter_booking_gate: {
       // The DEFAULTS of the gate's two limits. The live endpoint publishes the values the
@@ -199,7 +202,7 @@ const BUNDLED_POLICY = {
     },
   },
   claim_settlement: {
-    available: true,
+    available: null as boolean | null, // unknown here: the live /policy value is authoritative (false while payments are paused)
     optional: true,
     methods: ["card", "klarna", "affirm", "zip"],
     partial_payments_allowed: true,
@@ -213,7 +216,7 @@ const BUNDLED_POLICY = {
     referrer_reward_usd: 50,
     referee_reward_usd: 25,
     qualifying_event: "referred user completes a qualifying rental",
-    credit_use: "applied automatically at a future checkout",
+    credit_use: "applied automatically at a future checkout; RIGShare holds no security deposit, so there is no deposit for credit to apply to",
     clawback_on_refund_or_chargeback: true,
     abuse_policy: "self-referral and referral farming are prohibited",
     pages: {
@@ -416,7 +419,12 @@ const availabilityOutputSchema = {
     .object({
       starts_at: z.string().optional(),
       ends_at: z.string().optional(),
-      available: z.boolean().optional(),
+      available: z
+        .boolean()
+        .optional()
+        .describe(
+          "true = no owner or calendar block overlaps the range. Renter bookings are not checked, so the listing may still be booked then.",
+        ),
     })
     .nullish(),
 } as const;
@@ -441,7 +449,7 @@ const BOOKING_PARAM_DOCS = {
     "Answers to the renter-qualification questionnaire, required only when the listing requires renter qualification. The questionnaire is not available through this API, so if a booking is refused for qualification the renter must book that listing on the web; retrying here will not get past it.",
   qualification_version: "Version of the questionnaire the answers were given against; must match the current version.",
   idempotency_key:
-    "Optional, recommended: a new value for each booking you intend, the same value when retrying it (printable ASCII, up to 100 characters; a UUID works). A request that matches a pending, approved or confirmed booking you created in the last 5 minutes (same equipment; same dates, or for a same-day remote session the same UTC day; same duration type; and the same price, usage budget, compute environment, pickup/delivery choice and coverage choice) is never booked or charged a second time: with the same key, or with no key, you get that booking back, marked idempotent, with its payment state and next action; with a different key it is normally refused with HTTP 409 IDENTICAL_BOOKING_RECENT, which names the existing booking. Confirm with the user before booking the same thing again (if the original request's key isn't on record, you get the booking back instead). Reusing a key for a request that doesn't match its booking is refused with HTTP 422 IDEMPOTENCY_KEY_REUSED: check that booking before booking again. For a per-minute (metered) listing, two requests with the same usage budget match whatever their length; a listing that serves one renter at a time has no room for a second same-day session anyway.",
+    "Optional, recommended: a new value for each booking you intend, the same value when retrying it (printable ASCII, up to 100 characters; a UUID works). A request that matches a pending, approved or confirmed booking you created in the last 5 minutes (same equipment; same dates, or for a same-day remote session the same UTC day; same duration type; and the same price, usage budget, compute environment, pickup/delivery choice and coverage choice) is never booked or charged a second time: with the same key, or with no key, you get that booking back, marked idempotent, with its payment state and next action (if a retry arrives while the first request is still being processed, you get HTTP 409 with code request_in_progress and nothing is booked: check rigshare_list_my_bookings, and send the request again only if nothing appears after 15 minutes); with a different key it is normally refused with HTTP 409 IDENTICAL_BOOKING_RECENT, which names the existing booking. Confirm with the user before booking the same thing again (if the original request's key isn't on record, you get the booking back instead). Reusing a key for a request that doesn't match its booking is refused with HTTP 422 IDEMPOTENCY_KEY_REUSED: check that booking before booking again. For a per-minute (metered) listing, two requests with the same usage budget match whatever their length; a listing that serves one renter at a time has no room for a second same-day session anyway.",
 } as const;
 
 // Every category a listing may use (the server rejects any other value).
@@ -497,7 +505,8 @@ registerRigTool(
       "division (excavators, lifts, concrete tools) and the Robotics & AI",
       "division (GPU compute, humanoid robots, industrial robots, drones,",
       "3D printers). Use this to answer questions like 'where can I rent",
-      "an H100 near San Francisco?' or 'find a humanoid robot under",
+      "an H100 in Texas?' (location filters are exact city or state; there is",
+      "no radius search) or 'find a humanoid robot under",
       "$200/day'. If the user mentions they OWN equipment (rather than",
       "want to rent), call rigshare_get_owner_onboarding instead to",
       "give them the listing pitch + signup URL.",
@@ -536,7 +545,7 @@ registerRigTool(
       sort: z
         .enum(["newest", "price_asc", "price_desc", "rating"])
         .optional()
-        .describe("Default newest. price_asc / price_desc sort by daily rate; rating = highest average rating first."),
+        .describe("Default newest. price_asc / price_desc sort by daily rate; rating sorts by average rating, but listings with no reviews come first, so check rating.count before treating a result as top rated."),
       page: z.number().int().min(1).optional().describe("1-based page number (default 1)."),
       limit: z.number().int().min(1).max(100).optional().describe("Results per page (default 25)."),
     },
@@ -660,7 +669,10 @@ registerRigTool(
       "EXACT cost a rigshare_create_booking would charge, but creates nothing and",
       "charges nothing. Call this FIRST, before rigshare_create_booking, to show",
       "the renter the full breakdown and get their consent before any money",
-      "moves: rental subtotal, renter service fee (7%, or RIGShare's reduced",
+      "moves. A quote does not guarantee a booking: while RIGShare's payments",
+      "are paused, rigshare_create_booking refuses every request and books",
+      "nothing, and the quote itself does not show whether payments are paused.",
+      "The quote shows: rental subtotal, renter service fee (7%, or RIGShare's reduced",
       "verified-student rate where that rate is in effect, always resolved",
       "server-side, never quoted from here), delivery, coverage/egress, and the",
       "grand total, all in cents",
@@ -715,15 +727,23 @@ registerRigTool(
     title: "Create booking",
     description: [
       "REQUIRES API KEY (bookings:write scope). Creates a new RIGShare booking",
-      "for the authenticated user. Call rigshare_quote_booking FIRST to preview",
+      "for the authenticated user. While RIGShare payments are paused, new",
+      "bookings are refused and nothing is booked or charged: tell the person",
+      "and do not retry. Call rigshare_quote_booking FIRST to preview",
       "the exact cost (dry-run, nothing charged) and confirm it with the renter",
       "before committing money here. Server computes all prices from the",
       "equipment's canonical rates, so client-side price hints are ignored.",
       "Enforces identity verification and, when the API key has them, its",
-      "per-transaction and daily spend caps (both optional; a new key has",
-      "neither, and there is no monthly cap). The caps are checked against",
-      "the pre-tax amount, so sales tax can take the charge above them; for a",
-      "METERED booking the full budget_usd counts against them.",
+      "per-booking and rolling 24 hour spend limits (both optional; a new key",
+      "has neither, and there is no monthly cap). Both are checked before sales",
+      "tax, so the charge can end up above them. The 24 hour total counts every",
+      "booking and session extension this key requested in the last 24 hours,",
+      "including ones later declined, cancelled or expired. For a METERED",
+      "booking the full budget_usd counts. A refusal carries a code:",
+      "spend_limit_per_booking or spend_limit_24h (403), request_in_progress",
+      "(409, an earlier identical request is still being processed, so list",
+      "your bookings before retrying), or limits_unavailable (503, the limits",
+      "could not be read and nothing was booked).",
       "METERED listings (billing.mode === 'METERED' on the equipment, Tech",
       "remote-access only): bill per minute instead of upfront, and you MUST pass",
       "budget_usd (the maximum authorized session spend; only actual usage is",
@@ -1017,7 +1037,11 @@ registerRigTool(
       "Robotics & AI booking that is CONFIRMED or IN_PROGRESS: the server",
       "stops the per-minute billing clock, settles the charge for EXACT usage,",
       "releases the unused portion of the authorized budget, and marks the",
-      "booking COMPLETED, so no further session can be started on it. Callable",
+      "booking COMPLETED, so no further session can be started on it. While",
+      "RIGShare payments are paused and any usage is billable, the sessions end",
+      "but the charge waits: you get 409 payments_paused, the booking is not yet",
+      "COMPLETED, and billing is settled after the pause lifts (a session with",
+      "nothing to bill still settles at $0). Callable",
       "by the booking's renter or the listing's owner. Call this as soon as",
       "the renter is done: otherwise the per-minute meter keeps running until",
       "a heartbeat hard-stop or the budget is exhausted, overcharging the",
@@ -1068,7 +1092,11 @@ registerRigTool(
       "RIGShare staff are alerted and complete it by hand, so the amounts are",
       "not final. For",
       "a METERED session prefer rigshare_end_session (settles exact usage);",
-      "cancelling a metered booking with usage settles like an early end.",
+      "cancelling a metered booking with usage settles like an early end. While",
+      "RIGShare payments are paused and any usage is billable, that cancel is",
+      "refused instead: the sessions end, nothing is charged yet, and the booking",
+      "closes once payments resume (a booking with nothing to bill is not refused: it settles",
+      "at $0, or is cancelled with its hold released if no session was started).",
     ].join(" "),
     inputSchema: {
       booking_id: z.string().uuid().describe("The booking to cancel."),
@@ -1092,12 +1120,18 @@ registerRigTool(
       "per-minute budget on a running METERED (per-minute) Robotics & AI session,",
       "so a renter whose budget is about to exhaust can keep going. The server",
       "places an additional authorization hold on the renter's saved card and",
-      "raises the budget, computing the amount from the booking's per-minute",
+      "raises the budget (while RIGShare payments are paused it places no hold",
+      "and answers 400 payments_paused), computing the amount from the booking's per-minute",
       "rate. The client never sets the charge. Only the booking's RENTER can",
       "extend. Refused (HTTP 403) before any hold is placed when auto-pay is not",
       "enabled on the API key (it is off on a new key; the renter can then extend",
-      "from the booking page) or when the extension would exceed the key's",
-      "per-transaction or daily spend cap; refused (401) when the key is",
+      "from the booking page) or when the extension amount alone is above the",
+      "key's per-booking limit, or would take the key past its rolling 24 hour",
+      "spend limit (codes",
+      "spend_limit_per_booking and spend_limit_24h; the 24 hour total counts",
+      "requests that were later declined, cancelled or expired). If the limits",
+      "cannot be read it answers 503 limits_unavailable and places no hold;",
+      "refused (401) when the key is",
       "invalid, revoked or expired. Choose one of the fixed extension",
       "lengths: 15, 30, or 60 minutes. Only actual usage is ever charged; call",
       "rigshare_end_session when done to settle exact usage and release the unused",
@@ -1374,7 +1408,7 @@ server.registerResource(
       },
       owner_onboarding_steps:
         raw?.owner_onboarding_steps ??
-        "Draft-first: sign up → start your listing (no verification needed to draft) → at Publish, complete one-time identity + Stripe Connect setup → go live. See the rigshare_get_owner_onboarding tool for the full guide.",
+        "Draft-first: sign up → start your listing (no verification needed to draft) → at Publish, complete one-time identity + Stripe Connect setup (payout setup cannot be started or continued while RIGShare payments are paused) → go live. See the rigshare_get_owner_onboarding tool for the full guide.",
       signup: {
         construction: "https://www.rigshare.app/signup?redirect=%2Flist-equipment",
         robotics_ai: "https://tech.rigshare.app/login?mode=signup&redirect=%2Flist",
@@ -1515,7 +1549,7 @@ server.registerPrompt(
               "1. Call rigshare_search_equipment (division: \"robotics-ai\", plus compute_architecture / max_price_daily_usd / city / remote_only filters as relevant) to find matching instances.",
               "2. Call rigshare_get_equipment on the best candidate for full specs, remote-access type, and whether it is METERED (per-minute) billing.",
               "3. Call rigshare_quote_booking to show me the EXACT cost (dry run, nothing is charged) and confirm it with me before booking.",
-              "4. Only after I confirm, call rigshare_create_booking. For METERED listings pass budget_usd (my authorized session spend). Then rigshare_start_session to begin, and rigshare_get_session_usage / rigshare_extend_session / rigshare_end_session to track, extend, and settle.",
+              "4. Only after I confirm, call rigshare_create_booking. If RIGShare says booking is paused because payments are paused, tell me nothing was booked or charged and stop. For METERED listings pass budget_usd (my authorized session spend). Then rigshare_start_session to begin, and rigshare_get_session_usage / rigshare_extend_session / rigshare_end_session to track, extend, and settle.",
             ].join("\n"),
           },
         },
@@ -1551,7 +1585,7 @@ server.registerPrompt(
               "Please:",
               `1. Call rigshare_get_owner_onboarding (equipment_type: "${et}") for the current pitch, commission tiers, and the right signup URL.`,
               "2. If I have a RIGShare API key, call rigshare_save_draft_listing to capture the listing as a draft (no verification needed to draft). Collect title, description, rates, location, replacement value, and (for remote-access gear) remote-access config from me first. Photos can't be sent with a draft; I add at least one camera photo in the RIGShare app.",
-              "3. When I'm ready to go live, call rigshare_publish_listing with the draft_id. Identity verification + Stripe Connect payout setup are required once at publish (the tool's error tells me where if they aren't done). If my verification and payout setup are already done and I have photo URLs, rigshare_create_listing publishes in one step instead of the draft flow.",
+              "3. When I'm ready to go live, call rigshare_publish_listing with the draft_id. Identity verification + Stripe Connect payout setup are required once at publish (the tool's error tells me where if they aren't done; while RIGShare payments are paused payout setup cannot be started or continued). If my verification and payout setup are already done and I have photo URLs, rigshare_create_listing publishes in one step instead of the draft flow.",
             ].join("\n"),
           },
         },
@@ -1861,16 +1895,16 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
     looksRoboticsAi
       ? "2. Start your listing right away at **https://tech.rigshare.app/list**. No verification is needed to DRAFT: add your title, rates, photos, and specs. For remote-access-eligible gear (AI compute, AI infrastructure, IoT sensors), set up remote access by connecting your machine with the RIGShare tunnel (renters then reach it only through RIGShare) or by entering your own HTTPS endpoint, plus an optional API key, which RIGShare stores encrypted. API sessions are relayed through RIGShare's session proxy, with request checks and rate limits, unless you allow direct connections."
       : "2. Start your listing right away at **https://www.rigshare.app/list-equipment**. No verification is needed to DRAFT: add your title, 4-hour/daily/weekly/monthly rates, photos (front, rear, both sides and controls; at least one is required to publish), and specs. Set availability and delivery radius.",
-    "3. When you hit **Publish**, RIGShare walks you through the one-time setup just-in-time: identity verification (Stripe Identity: a government photo ID and a selfie) and Stripe Connect payout onboarding. You only do this once.",
-    "4. Publish: your listing goes live, renters can book it (or, on a request-to-book listing, send you a request to approve), and you get a notification on each booking.",
+    "3. When you hit **Publish**, RIGShare walks you through the one-time setup just-in-time: identity verification (Stripe Identity: a government photo ID and a selfie) and Stripe Connect payout onboarding. You only do this once. While RIGShare payments are paused, payout onboarding cannot be started or continued, so an owner who has not finished it yet can save drafts but normally cannot publish until payments resume (setup that Stripe is already reviewing can still complete during the pause).",
+    "4. Publish: your listing goes live and renters can find it. While RIGShare payments are on, renters can book it (or, on a request-to-book listing, send you a request to approve) and you get a notification on each booking; while payments are paused, booking requests are refused until they resume.",
     "",
-    "**Listing directly from this chat:** with a RIGShare API key that has the `equipment:write` scope (create one at https://www.rigshare.app/enterprise; API keys need a Pro or Enterprise plan), the agent can either save your listing as a draft with `rigshare_save_draft_listing` (no verification needed; you add a camera photo in the RIGShare app, then the agent publishes it with `rigshare_publish_listing`), or publish in one step with `rigshare_create_listing`, with title, rates, photos (https URLs), and remote-access config for tech hardware. The one-step path has **no draft: it publishes immediately**, so your identity verification and Stripe Connect payout setup must already be done once on the web (the tool's error tells you where if not).",
+    "**Listing directly from this chat:** with a RIGShare API key that has the `equipment:write` scope (create one at https://www.rigshare.app/enterprise; API keys need a Pro or Enterprise plan; while RIGShare payments are paused a new plan cannot be bought), the agent can either save your listing as a draft with `rigshare_save_draft_listing` (no verification needed; you add a camera photo in the RIGShare app, then the agent publishes it with `rigshare_publish_listing`), or publish in one step with `rigshare_create_listing`, with title, rates, photos (https URLs), and remote-access config for tech hardware. The one-step path has **no draft: it publishes immediately**, so your identity verification and Stripe Connect payout setup must already be done once on the web (the tool's error tells you where if not).",
     "",
     "## Ongoing",
     "",
     "- Manage bookings + approvals at https://www.rigshare.app/dashboard",
     "- Messages with renters in-app (never on personal phones)",
-    "- Payouts via Stripe Connect: your share is released to your Stripe account 48 hours after each rental is complete; the bank deposit then follows Stripe's payout schedule",
+    "- Payouts via Stripe Connect: your share is released to your Stripe account 48 hours after each rental is complete, once RIGShare payments are running (releases wait while payments are paused); the bank deposit then follows Stripe's payout schedule",
     "- If damage is reported on return, the owner reviews it and may approve a charge. RIGShare charges the renter ONLY if the renter expressly accepts it, and never above the deposit figure displayed on the listing. RIGShare holds no deposit funds; renter silence never results in a charge, and the renter remains fully liable to the owner for actual damage.",
     "",
     "## Questions",
@@ -1889,7 +1923,7 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
 // ─── AUTHENTICATED TOOLS (require RIGSHARE_API_KEY) ─────────────────
 
 const API_KEY_ERROR_MSG =
-  "This operation requires a RIGShare API key. Set RIGSHARE_API_KEY in your MCP client's env config. Get a key at https://www.rigshare.app/enterprise (API keys need a Pro or Enterprise plan) or contact support@rigshare.app.";
+  "This operation requires a RIGShare API key. Set RIGSHARE_API_KEY in your MCP client's env config. Get a key at https://www.rigshare.app/enterprise (API keys need a Pro or Enterprise plan; while RIGShare payments are paused a new plan cannot be bought) or contact support@rigshare.app.";
 
 async function fetchAuthJson(
   apiKey: string,
@@ -2050,7 +2084,7 @@ async function quoteBooking(args: Record<string, unknown>) {
     method: "POST",
     body: JSON.stringify(body),
   });
-  if (res.error) return toolError(res.error);
+  if (res.error) return toolError(withErrorCode(res));
 
   const d = (res.data || {}) as any;
   const dollars = (cents: number) => `$${((cents || 0) / 100).toFixed(2)}`;
@@ -2138,7 +2172,7 @@ async function createBooking(args: Record<string, unknown>) {
     method: "POST",
     body: JSON.stringify(body),
   });
-  if (res.error) return toolError(res.error);
+  if (res.error) return toolError(withErrorCode(res));
 
   // Response payload is FLAT (success envelope already unwrapped by
   // fetchAuthJson): booking_id, confirmation_code, status, total_amount,
@@ -2343,7 +2377,7 @@ async function checkAvailability(args: Record<string, unknown>) {
 
   const blockLines =
     blocked.length === 0
-      ? ["No unavailability windows: the listing is fully open on RIGShare's calendar."]
+      ? ["No owner or calendar blocks are set. This does not show renter bookings, so the listing may still be booked for some dates."]
       : blocked.map((b, i) => {
           const start = new Date(b.starts_at);
           const end = new Date(b.ends_at);
@@ -2543,7 +2577,7 @@ async function endSession(args: Record<string, unknown>) {
     `${RIGSHARE_AGENT_API}/bookings/${encodeURIComponent(args.booking_id as string)}/end`,
     { method: "POST", body: JSON.stringify({}) },
   );
-  if (res.error) return toolError(res.error);
+  if (res.error) return toolError(withErrorCode(res));
 
   // Response payload is FLAT (envelope unwrapped by fetchAuthJson):
   // booking_id, settled, billed_cents, billed_usd, used_minutes, compute_hours.
@@ -2659,8 +2693,10 @@ async function extendSession(args: Record<string, unknown>) {
         ? " The API key is missing, invalid, revoked or expired. No hold was placed and the budget is unchanged."
         : res.status === 403
           ? " No hold was placed and the budget is unchanged."
-          : "";
-    return toolError(`${res.error}${noHold}`);
+          : res.status === 503
+            ? " No hold was placed and the budget is unchanged."
+            : "";
+    return toolError(`${withErrorCode(res)}${noHold}`);
   }
 
   const d = (res.data || {}) as any;
@@ -2815,7 +2851,7 @@ async function saveDraftListing(args: Record<string, unknown>) {
       d.is_new === false ? `(updated the existing draft for this session)` : null,
       ``,
       d.note ||
-        "Saved as draft. Publish when ready (identity + payout setup happen at publish, not now).",
+        "Saved as draft. Publish when ready (identity + payout setup happen at publish, not now; while RIGShare payments are paused payout setup cannot be started or continued).",
     ]
       .filter((l) => l !== null)
       .join("\n"),
@@ -2864,7 +2900,7 @@ async function getBooking(args: Record<string, unknown>) {
       `Window: ${d.start_date || "unknown"} → ${d.end_date || "unknown"} (${d.duration_type || "unknown"})`,
       isMetered
         ? `Billing: METERED, budget ${usd(money.meter_budget_cents)}, billed so far ${usd(money.meter_billed_cents)}`
-        : `Total: ${usd(money.total_amount_cents)} (rental ${usd(money.rental_total_cents)} + service fee ${usd(money.service_fee_cents)})`,
+        : `Total: ${usd(money.total_amount_cents)} (rental ${usd(money.rental_total_cents)}, service fee ${usd(money.service_fee_cents)}, sales tax ${usd(money.tax_cents)}; delivery and any other charges are included in the total)`,
       isMetered ? null : depositLine,
       d.session ? `Active session: ${d.session.active_session_id || "none"}${d.session.status ? ` (${d.session.status})` : ""}` : null,
       ``,
@@ -2949,17 +2985,19 @@ async function publishListing(args: Record<string, unknown>) {
       code === "ID_NOT_VERIFIED"
         ? "The owner must complete identity verification in the RIGShare app, then retry."
         : code === "STRIPE_CONNECT_REQUIRED"
-          ? "The owner must finish payout setup (Stripe Connect) in the RIGShare app, then retry."
+          ? "The owner must finish payout setup (Stripe Connect) in the RIGShare app, then retry. While RIGShare payments are paused that setup cannot be started or continued, so the listing normally stays a draft until payments resume (if Stripe was already reviewing the owner's setup, retry once it completes)."
           : code === "TIER_LIMIT"
-            ? "The owner's plan has reached its listing limit. Upgrade the plan or pause another listing."
+            ? "The owner's plan has reached its listing limit, which counts active, paused, in-review and draft listings (this draft included). Upgrade the plan, or delete another listing (one with no active booking) or an unused draft in the RIGShare app, then retry; pausing a listing does not free a slot. While RIGShare payments are paused a new plan cannot be bought, so deleting a listing or draft is the only option until they resume."
             : code === "REPLACEMENT_VALUE_REQUIRED"
               ? "A physical (non-remote) listing needs a replacement value to publish: re-save the draft with replacement_value_usd and retry."
             : code === "DEPOSIT_ABOVE_LIMIT"
               ? "The deposit figure to display is above what the replacement value allows (10% of it, $25–$1,000) or the replacement value is missing: re-save the draft with a lower deposit_display_usd and/or a replacement_value_usd, then retry."
             : code === "INCOMPLETE"
-              ? "The draft is missing basics (title/description/category), rates, location (a physical INSTANT listing also needs a street address, added in the app), or at least one camera photo added in the app."
+              ? "The draft is missing something: a title, a description of at least 10 characters, make, model, a daily rate, city, state and zip (a physical INSTANT listing also needs a street address, added in the app), or at least one camera photo added in the app. The error text names exactly what is missing."
               : code === "MODERATION_FLAGGED"
                 ? "The title/description/photos were flagged by moderation: edit them and retry."
+                : code === "owner_agreement_required"
+                  ? "The owner must accept the RIGShare Rental Agreement in the RIGShare app, then retry the publish."
                 : code === "PHOTO_REVIEW_UNAVAILABLE"
                   ? "The photos could not be reviewed. This is usually a temporary outage: retry in a few minutes. If it keeps failing, the owner should replace the photos in the RIGShare app or contact support@rigshare.app."
                   : "";
@@ -2974,7 +3012,7 @@ async function publishListing(args: Record<string, unknown>) {
       `Status: ${d.status || "ACTIVE"}`,
       d.url ? `Live at: ${d.url}` : null,
       ``,
-      `Renters can now find and book it. Booking requests on it appear in the owner's dashboard: https://www.rigshare.app/dashboard`,
+      `The listing is live and renters can find it. New bookings open when RIGShare payments are on; while payments are paused, booking requests are refused until they resume. Bookings you receive appear in the owner's dashboard: https://www.rigshare.app/dashboard`,
     ]
       .filter((l) => l !== null)
       .join("\n"),
@@ -3136,7 +3174,7 @@ function renderEconomics(policy: NormalizedPolicy): string[] {
     // `false` drops it entirely; `null` (bundled fallback, or a payload that
     // predates the field) says the status is unknown and names where to look,
     // rather than quoting a rate we cannot confirm.
-    `- Renters pay up to a ${pctLabel(fee.standard)} service fee on top of your rental total${
+    `- Renters pay up to a ${pctLabel(fee.standard)} service fee on top of your rental total and any delivery fee${
       policy.student_rate_active === true
         ? ` (reduced to ${pctLabel(fee.student)} for verified students)`
         : policy.student_rate_active === null
@@ -3144,7 +3182,7 @@ function renderEconomics(policy: NormalizedPolicy): string[] {
           : ""
     }; doesn't reduce your payout`,
     `- RIGShare holds NO security deposit. Physical listings may DISPLAY an owner-stated deposit figure (deposit_display_cents: null means none stated, 0 means the owner requires none); it is never held or charged unless the renter expressly accepts a damage claim, and an accepted claim is never charged above it. METERED per-minute Tech sessions display no figure; the renter authorizes a usage budget instead`,
-    "- Payouts via Stripe Connect: your share is released to your Stripe account 48 hours after the rental is complete; the bank deposit then follows Stripe's payout schedule",
+    "- Payouts via Stripe Connect: your share is released to your Stripe account 48 hours after the rental is complete, once RIGShare payments are running (releases wait while payments are paused); the bank deposit then follows Stripe's payout schedule",
     "- Buy-now-pay-later at checkout where offered (Klarna, Affirm, Zip)",
     "",
   ];
@@ -3176,6 +3214,14 @@ function toolData(text: string, structuredContent: Record<string, unknown>) {
     content: [{ type: "text" as const, text }],
     structuredContent,
   };
+}
+
+// Append the server's stable machine `code` (spend_limit_24h, request_in_progress,
+// limits_unavailable ...) to an error message so an agent can tell a retry-later
+// answer from a hard refusal. No code in the body: message unchanged.
+function withErrorCode(res: { error?: string; data?: unknown }): string {
+  const code = (res.data as { code?: unknown } | undefined)?.code;
+  return typeof code === "string" && code ? `${res.error} (code: ${code})` : String(res.error);
 }
 
 function toolError(message: string) {
