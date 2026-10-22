@@ -1833,7 +1833,7 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
       "- **Identity verification** (Stripe Identity government photo ID + selfie match) on every renter, so you know who's taking your gear",
       "- **Renter insurance choice**: on each booking the renter either provides their own certificate of insurance for you to review or accepts RIGShare's Liability Acknowledgment Waiver. RIGShare does not sell insurance and does not verify certificates.",
       "- **GPS tracking integrations** (CalAmp, Samsara, OneStepGPS) on paid plans: Enterprise on the website, Pro and Enterprise in the mobile apps, for owners who already have one of those trackers",
-      "- **QR code + 4-digit PIN handoff verification**: both parties scan at pickup/return",
+      "- **Two-sided handoff verification**: both parties verify at pickup/return",
       "- **Optional owner delivery**: owners can deliver gear to the renter for a fee",
       "- **Timestamped pickup and return photos** document the machine's condition, with an AI-assisted comparison that you review",
       "",
@@ -1844,7 +1844,7 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
     sections.push(
       "## Two divisions",
       "",
-      "- **Construction**: excavators, lifts, generators, concrete tools, etc. Physical handoff with QR/PIN verification and pickup/return photos; GPS tracking on paid plans for owners with a supported tracker.",
+      "- **Construction**: excavators, lifts, generators, concrete tools, etc. Physical handoff verified by both parties, with pickup/return photos; GPS tracking on paid plans for owners with a supported tracker.",
       "- **Robotics & AI**: GPU compute, AI infrastructure, and IoT sensors rent with remote access via SSH/Jupyter/VNC/API and never ship. Humanoid robots, industrial robots, drones, and 3D printers are physical-only: in-person pickup or owner delivery, no remote operation.",
       "",
     );
