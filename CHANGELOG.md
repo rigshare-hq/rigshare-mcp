@@ -54,6 +54,12 @@ their own; those entries say which published release first included them.
   personal responsibility for damage under it, which is what the waiver does.
   Wording only; no tool, parameter, resource or prompt was added, removed or
   renamed.
+- The listing tools now say what counts toward an owner's plan listing limit:
+  live, paused and in-review listings count, drafts do not (an owner can hold
+  up to 10 drafts, the same on every plan), and deleting a listing frees a slot
+  while pausing it does not. The `TIER_LIMIT` hint no longer suggests pausing a
+  listing to make room. No tool, parameter, resource or prompt was added,
+  removed or renamed.
 - The `duration_type` parameter of `rigshare_quote_booking` and
   `rigshare_create_booking` (and the README) now says which rental periods a
   listing accepts. `HOURLY` is accepted only on remote-access listings that set
@@ -86,10 +92,10 @@ their own; those entries say which published release first included them.
   sales tax, the availability tool says it does not show renter bookings, the
   rating sort description says unreviewed listings come first, the search
   example no longer implies a radius search, the publish hints cover the draft
-  basics and `owner_agreement_required`, the listing-limit hint says paused and
-  draft listings count toward the limit (deleting one, not pausing it, frees a
-  slot), and the bundled referral wording matches the live policy. No tool,
-  parameter, resource or prompt was added, removed or renamed.
+  basics and `owner_agreement_required`, the listing-limit hint says which
+  listings count toward the limit (deleting one, not pausing it, frees a slot),
+  and the bundled referral wording matches the live policy. No tool, parameter,
+  resource or prompt was added, removed or renamed.
 
 ## [2.2.0] — 2026-10-02
 

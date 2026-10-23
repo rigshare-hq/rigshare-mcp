@@ -833,7 +833,9 @@ registerRigTool(
       "hourly_rate_usd. Requirements enforced server-side: the owner account",
       "must have completed Stripe Identity verification AND Stripe Connect",
       "payout onboarding (one-time, web only, and the error tells you where), the",
-      "account's plan must have listing capacity, a physical (non-remote)",
+      "account's plan must have room for it (live, paused and in-review",
+      "listings count toward the plan limit; drafts do not; deleting a listing",
+      "frees a slot, pausing it does not), a physical (non-remote)",
       "listing needs replacement_value_usd (refused with",
       "REPLACEMENT_VALUE_REQUIRED otherwise), and at least one photo URL is",
       "required; photos are fetched, content-moderated, watermarked, and",
@@ -1192,7 +1194,9 @@ registerRigTool(
       "added in the app, as it was. Once the draft is published the id no",
       "longer refers to it, and a save with it starts a new draft. Returns the draft id",
       "+ the draft_session_id to resume it. Use this when the owner isn't verified",
-      "yet or wants to finish the listing later. To PUBLISH later the listing",
+      "yet or wants to finish the listing later. Drafts do not count toward the",
+      "plan's listing limit, but each owner can hold at most 10 drafts at a time",
+      "(the same on every plan). To PUBLISH later the listing",
       "needs at least one camera photo added in the RIGShare app (agents",
       "cannot upload photos). A physical (non-remote) listing needs a",
       "replacement value (replacement_value_usd) to publish: the server",
@@ -1313,7 +1317,9 @@ registerRigTool(
       "REQUIRES API KEY (equipment:write scope). Flips a DRAFT saved with",
       "rigshare_save_draft_listing to ACTIVE on the marketplace, through the",
       "SAME gate the web and mobile apps use: identity verification, Stripe",
-      "Connect payout setup, the tier listing limit, completeness (basics,",
+      "Connect payout setup, the tier listing limit (live, paused and in-review",
+      "listings count toward it; drafts do not, including this one; deleting a",
+      "listing frees a slot, pausing it does not), completeness (basics,",
       "rates, location (including a street address for a physical INSTANT",
       "listing) and at least one camera photo added in the RIGShare app),",
       "and content moderation. A physical (non-remote) listing needs a",
@@ -2987,7 +2993,7 @@ async function publishListing(args: Record<string, unknown>) {
         : code === "STRIPE_CONNECT_REQUIRED"
           ? "The owner must finish payout setup (Stripe Connect) in the RIGShare app, then retry. While RIGShare payments are paused that setup cannot be started or continued, so the listing normally stays a draft until payments resume (if Stripe was already reviewing the owner's setup, retry once it completes)."
           : code === "TIER_LIMIT"
-            ? "The owner's plan has reached its listing limit, which counts active, paused, in-review and draft listings (this draft included). Upgrade the plan, or delete another listing (one with no active booking) or an unused draft in the RIGShare app, then retry; pausing a listing does not free a slot. While RIGShare payments are paused a new plan cannot be bought, so deleting a listing or draft is the only option until they resume."
+            ? "The owner's plan has reached its listing limit. Live, paused and in-review listings count toward it (drafts do not). Upgrade the plan, or delete another listing (one with no active booking) in the RIGShare app, then retry; pausing a listing does not free a slot. While RIGShare payments are paused a new plan cannot be bought, so deleting a listing is the only option until they resume."
             : code === "REPLACEMENT_VALUE_REQUIRED"
               ? "A physical (non-remote) listing needs a replacement value to publish: re-save the draft with replacement_value_usd and retry."
             : code === "DEPOSIT_ABOVE_LIMIT"

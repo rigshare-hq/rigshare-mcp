@@ -36,7 +36,7 @@ owner's behalf, and never steps up to MFA.
 | Tool | Required scope | What it does |
 |---|---|---|
 | `rigshare_save_draft_listing` | `equipment:write` | Save a half-finished listing as a DRAFT (both divisions); idempotent per `draft_session_id` (a re-save changes only the fields you pass). Include `replacement_value_usd` for a physical listing (caps the displayable deposit; the server may require it to publish) |
-| `rigshare_publish_listing` | `equipment:write` | Publish a draft through the same gate as the apps (identity, payout setup, camera photo, moderation). Gate failures come back as codes the agent relays |
+| `rigshare_publish_listing` | `equipment:write` | Publish a draft through the same gate as the apps (identity, payout setup, plan listing limit, camera photo, moderation). Live, paused and in-review listings count toward the plan limit and drafts do not (an owner can hold up to 10 drafts); deleting a listing frees a slot, pausing it does not. Gate failures come back as codes the agent relays |
 | `rigshare_create_listing` | `equipment:write` | Create-and-publish in one call when the owner is already verified and has photos |
 | `rigshare_check_availability` | `equipment:read` | Unavailability blocks on one of your own listings, looked up by its `external_id` |
 | `rigshare_sync_availability` | `equipment:write` | Push an ERP / fleet calendar's blocks onto one of your listings (replaces the previously synced blocks) |
