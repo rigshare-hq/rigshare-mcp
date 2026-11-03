@@ -358,8 +358,8 @@ check(
   !/insurance proof|verified before pickup|insurance verification/i.test(constructionTxt),
 );
 check(
-  "onboarding (construction): GPS is a paid-plan feature",
-  constructionTxt.includes("on paid plans: Enterprise on the website, Pro and Enterprise in the mobile apps"),
+  "onboarding (construction): GPS is an Enterprise plan feature",
+  constructionTxt.includes("(CalAmp, Samsara, OneStepGPS) on the Enterprise plan, for owners"),
 );
 check(
   "onboarding: no setup-time estimates or 'Payouts arrive 48h'",

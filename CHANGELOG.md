@@ -11,7 +11,15 @@ their own; those entries say which published release first included them.
 
 ## [Unreleased]
 
-## [2.2.1] — not yet published
+## [2.2.2] — not published
+
+### Changed
+- Zip is no longer listed as a payment method. The bundled fallback policy lists
+  card, Klarna and Affirm for on-platform claim settlement, and the owner pitch
+  names Klarna and Affirm only, matching the live `/api/public/v1/policy`
+  payload (Zip is off at launch; Afterpay is never offered).
+
+## [2.2.1] — 2026-10-26
 
 ### Changed
 - The bundled fallback copy of the policy (what `rigshare://pricing` returns
@@ -34,8 +42,8 @@ their own; those entries say which published release first included them.
   construction: `https://www.rigshare.app/signup?redirect=%2Flist-equipment`)
   instead of a waitlist page or a plain sign-up page.
 - The owner guide no longer says RIGShare verifies insurance (it sells and
-  verifies none), describes GPS tracking as a paid-plan feature for owners with
-  a supported tracker, drops setup-time estimates, describes remote-access
+  verifies none), describes GPS tracking as an Enterprise plan feature for owners
+  with a supported tracker, drops setup-time estimates, describes remote-access
   security as it works today (API keys encrypted at rest, an owner-set API
   allowlist and concurrency limit, no IP restrictions or session duration caps),
   and states payout timing as a release to the owner's Stripe account 48 hours
@@ -74,6 +82,11 @@ their own; those entries say which published release first included them.
   figure, which RIGShare never holds, and that RIGShare charges a renter for
   damage only if the renter expressly accepts a damage claim, never above that
   figure. Wording only; no tool, parameter, resource or prompt was added,
+  removed or renamed.
+- The owner guide returned by `rigshare_get_owner_onboarding` now describes the
+  pickup and return handoff check, in the construction section and in the
+  two-division overview, as something both parties verify, without detailing
+  how it works. Wording only. No tool, parameter, resource or prompt was added,
   removed or renamed.
 - The container image (`Dockerfile`, used by hosted MCP platforms) now builds
   on Node 24 instead of Node 20, which is past end of life and no longer

@@ -76,7 +76,7 @@ const RIGSHARE_V1_API =
 // the user at rigshare.app for API key setup.
 const RIGSHARE_API_KEY = process.env.RIGSHARE_API_KEY;
 // Keep in sync with package.json "version".
-const VERSION = "2.2.1";
+const VERSION = "2.2.2";
 const USER_AGENT = `rigshare-mcp/${VERSION}`;
 // Bounded per-request timeout — a stalled endpoint must never block a tool.
 const FETCH_TIMEOUT_MS = 10_000;
@@ -204,7 +204,7 @@ const BUNDLED_POLICY = {
   claim_settlement: {
     available: null as boolean | null, // unknown here: the live /policy value is authoritative (false while payments are paused)
     optional: true,
-    methods: ["card", "klarna", "affirm", "zip"],
+    methods: ["card", "klarna", "affirm"],
     partial_payments_allowed: true,
     auto_resolves_on_full_payment: true,
     renter_pays_admin_fee: true,
@@ -1872,7 +1872,7 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
       "",
       "- **Identity verification** (Stripe Identity government photo ID + selfie match) on every renter, so you know who's taking your gear",
       "- **Renter insurance choice**: on each booking the renter either provides their own certificate of insurance for you to review or accepts RIGShare's Liability Acknowledgment Waiver. RIGShare does not sell insurance and does not verify certificates.",
-      "- **GPS tracking integrations** (CalAmp, Samsara, OneStepGPS) on paid plans: Enterprise on the website, Pro and Enterprise in the mobile apps, for owners who already have one of those trackers",
+      "- **GPS tracking integrations** (CalAmp, Samsara, OneStepGPS) on the Enterprise plan, for owners who already have one of those trackers",
       "- **Two-sided handoff verification**: both parties verify at pickup/return",
       "- **Optional owner delivery**: owners can deliver gear to the renter for a fee",
       "- **Timestamped pickup and return photos** document the machine's condition, with an AI-assisted comparison that you review",
@@ -1884,7 +1884,7 @@ async function getOwnerOnboarding(args: Record<string, unknown>) {
     sections.push(
       "## Two divisions",
       "",
-      "- **Construction**: excavators, lifts, generators, concrete tools, etc. Physical handoff verified by both parties, with pickup/return photos; GPS tracking on paid plans for owners with a supported tracker.",
+      "- **Construction**: excavators, lifts, generators, concrete tools, etc. Physical handoff verified by both parties, with pickup/return photos; GPS tracking on the Enterprise plan for owners with a supported tracker.",
       "- **Robotics & AI**: GPU compute, AI infrastructure, and IoT sensors rent with remote access via SSH/Jupyter/VNC/API and never ship. Humanoid robots, industrial robots, drones, and 3D printers are physical-only: in-person pickup or owner delivery, no remote operation.",
       "",
     );
@@ -3189,7 +3189,7 @@ function renderEconomics(policy: NormalizedPolicy): string[] {
     }; doesn't reduce your payout`,
     `- RIGShare holds NO security deposit. Physical listings may DISPLAY an owner-stated deposit figure (deposit_display_cents: null means none stated, 0 means the owner requires none); it is never held or charged unless the renter expressly accepts a damage claim, and an accepted claim is never charged above it. METERED per-minute Tech sessions display no figure; the renter authorizes a usage budget instead`,
     "- Payouts via Stripe Connect: your share is released to your Stripe account 48 hours after the rental is complete, once RIGShare payments are running (releases wait while payments are paused); the bank deposit then follows Stripe's payout schedule",
-    "- Buy-now-pay-later at checkout where offered (Klarna, Affirm, Zip)",
+    "- Buy-now-pay-later at checkout where offered (Klarna, Affirm)",
     "",
   ];
 }
